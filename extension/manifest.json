@@ -1,0 +1,36 @@
+{
+  "manifest_version": 3,
+  "name": "For Little",
+  "version": "0.1.0",
+  "description": "Managed browsing guard for little monks.",
+  "permissions": [
+    "storage",
+    "tabs",
+    "webNavigation",
+    "declarativeNetRequest",
+    "alarms"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "background": {
+    "service_worker": "src/background/index.js",
+    "type": "module"
+  },
+  "action": {
+    "default_popup": "src/ui/popup/index.html",
+    "default_title": "For Little"
+  },
+  "options_page": "src/ui/popup/index.html",
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "src/ui/block/index.html",
+        "src/ui/block/index.css"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>For Little</title>
+    <link rel="stylesheet" href="./index.css" />
+  </head>
+  <body>
+    <main class="app">
+      <p class="eyebrow">For Little</p>
+      <h1>Extension Status</h1>
+      <p id="modeLabel">Loading configuration...</p>
+      <dl class="status-list">
+        <div>
+          <dt>Display Name</dt>
+          <dd id="displayNameValue">-</dd>
+        </div>
+        <div>
+          <dt>Registration</dt>
+          <dd id="registrationStatus">-</dd>
+        </div>
+        <div>
+          <dt>Policy Version</dt>
+          <dd id="policyVersion">-</dd>
+        </div>
+        <div>
+          <dt>Pending Logs</dt>
+          <dd id="pendingLogs">-</dd>
+        </div>
+        <div>
+          <dt>Last Error</dt>
+          <dd id="lastError">-</dd>
+        </div>
+      </dl>
+      <div class="actions">
+        <button id="refreshRuntimeButton" type="button">Reconnect Now</button>
+        <button id="flushLogsButton" type="button">Flush Logs Now</button>
+      </div>
+      <section id="adminGatePanel" class="admin-panel">
+        <h2>Admin Unlock</h2>
+        <form id="adminUnlockForm">
+          <label>
+            Admin Password
+            <input
+              id="adminPassword"
+              name="adminPassword"
+              type="password"
+              placeholder="Enter admin password"
+            />
+          </label>
+          <button type="submit">Unlock Config</button>
+        </form>
+      </section>
+      <section id="configPanel" class="admin-panel" hidden>
+        <h2>Config</h2>
+        <form id="devConfigForm">
+          <label>
+            Machine ID
+            <input id="machineId" name="machineId" placeholder="DEV-LM-001" />
+          </label>
+          <label>
+            Display Name
+            <input
+              id="displayName"
+              name="displayName"
+              placeholder="Chu Tieu A"
+            />
+          </label>
+          <label>
+            Server Base URL
+            <input
+              id="serverBaseUrl"
+              name="serverBaseUrl"
+              placeholder="http://localhost:8080"
+            />
+          </label>
+          <button type="submit">Save Dev Config</button>
+        </form>
+      </section>
+      <p id="savedMessage"></p>
+    </main>
+    <script type="module" src="./index.js"></script>
+  </body>
+</html>

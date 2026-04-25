@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Blocked</title>
+    <link rel="stylesheet" href="./index.css">
+  </head>
+  <body>
+    <main class="card">
+      <p class="eyebrow">For Little</p>
+      <h1>Trang này đang bị hạn chế</h1>
+      <p id="domain"></p>
+      <p>Trang web này nằm trong danh sách hạn chế theo policy của thiết bị.</p>
+    </main>
+    <script type="module">
+      const params = new URLSearchParams(window.location.search);
+      document.getElementById("domain").textContent = params.get("domain") || "";
+    </script>
+  </body>
+</html>
