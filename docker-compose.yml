@@ -1,0 +1,16 @@
+services:
+  server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    env_file:
+      - ./server/.env
+    ports:
+      - "8080:8080"
+    networks:
+      - nginx_network
+    restart: unless-stopped
+
+networks:
+  nginx_network:
+    external: true
