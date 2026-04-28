@@ -1,24 +1,34 @@
 package config
 
-import "os"
+import (
+	"os"
+	"strconv"
+	"strings"
+)
 
 type Config struct {
-	AppEnv      string
-	Port        string
-	DatabaseURL string
-	AdminUser   string
-	AdminPass   string
-	AdminToken  string
+	AppEnv               string
+	Port                 string
+	DatabaseURL          string
+	AdminEmail           string
+	AdminPassword        string
+	AdminDisplayName     string
+	AdminSessionTTLHours int
+	AdminCookieSecure    bool
+	CORSAllowedOrigins   []string
 }
 
 func Load() Config {
 	return Config{
-		AppEnv:      getEnv("APP_ENV", "development"),
-		Port:        getEnv("PORT", "8080"),
-		DatabaseURL: getEnv("DATABASE_URL", "postgres://postgres:postgres@localhost:5432/forlittle?sslmode=disable"),
-		AdminUser:   getEnv("ADMIN_USERNAME", "admin"),
-		AdminPass:   getEnv("ADMIN_PASSWORD", "admin123"),
-		AdminToken:  getEnv("ADMIN_API_TOKEN", "phase1-admin-token"),
+		AppEnv:               getEnv("APP_ENV", "development"),
+		Port:                 getEnv("PORT", "8080"),
+		DatabaseURL:          getEnv("DATABASE_URL", "postgres://postgres:postgres@localhost:5432/forlittle?sslmode=disable"),
+		AdminEmail:           getEnv("ADMIN_EMAIL", "admin@example.com"),
+		AdminPassword:        getEnv("ADMIN_PASSWORD", "admin123"),
+		AdminDisplayName:     getEnv("ADMIN_DISPLAY_NAME", "Temple Admin"),
+		AdminSessionTTLHours: getEnvInt("ADMIN_SESSION_TTL_HOURS", 24),
+		AdminCookieSecure:    getEnvBool("ADMIN_COOKIE_SECURE", false),
+		CORSAllowedOrigins:   getEnvList("CORS_ALLOWED_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173"),
 	}
 }
 
@@ -28,4 +38,47 @@ func getEnv(key, fallback string) string {
 	}
 
 	return fallback
+}
+
+func getEnvInt(key string, fallback int) int {
+	value := os.Getenv(key)
+	if value == "" {
+		return fallback
+	}
+
+	parsed, err := strconv.Atoi(value)
+	if err != nil {
+		return fallback
+	}
+
+	return parsed
+}
+
+func getEnvBool(key string, fallback bool) bool {
+	value := os.Getenv(key)
+	if value == "" {
+		return fallback
+	}
+
+	parsed, err := strconv.ParseBool(value)
+	if err != nil {
+		return fallback
+	}
+
+	return parsed
+}
+
+func getEnvList(key string, fallback string) []string {
+	rawValue := getEnv(key, fallback)
+	parts := strings.Split(rawValue, ",")
+	values := make([]string, 0, len(parts))
+
+	for _, part := range parts {
+		value := strings.TrimSpace(part)
+		if value != "" {
+			values = append(values, value)
+		}
+	}
+
+	return values
 }

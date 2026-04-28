@@ -9,6 +9,26 @@ type Admin struct {
 	CreatedAt    time.Time `json:"created_at"`
 }
 
+type User struct {
+	ID           uint      `gorm:"primaryKey" json:"id"`
+	Email        string    `gorm:"uniqueIndex;size:255;not null" json:"email"`
+	PasswordHash string    `gorm:"size:255;not null" json:"-"`
+	DisplayName  string    `gorm:"size:255;not null" json:"display_name"`
+	Role         string    `gorm:"size:50;not null;default:admin" json:"role"`
+	Status       string    `gorm:"size:50;not null;default:active" json:"status"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
+}
+
+type UserSession struct {
+	ID         uint       `gorm:"primaryKey" json:"id"`
+	UserID     uint       `gorm:"index;not null" json:"user_id"`
+	TokenHash  string     `gorm:"uniqueIndex;size:255;not null" json:"-"`
+	ExpiresAt  time.Time  `gorm:"index;not null" json:"expires_at"`
+	LastSeenAt *time.Time `json:"last_seen_at"`
+	CreatedAt  time.Time  `json:"created_at"`
+}
+
 type LittleMonk struct {
 	ID          uint      `gorm:"primaryKey" json:"id"`
 	Code        string    `gorm:"uniqueIndex;size:100;not null" json:"code"`
@@ -38,12 +58,19 @@ type BrowserProfile struct {
 
 type PolicyRule struct {
 	ID           uint      `gorm:"primaryKey" json:"id"`
-	LittleMonkID uint      `gorm:"index;not null" json:"little_monk_id"`
+	LittleMonkID *uint     `gorm:"index" json:"little_monk_id"`
 	Action       string    `gorm:"size:20;not null" json:"action"`
 	PatternType  string    `gorm:"size:50;not null" json:"pattern_type"`
-	PatternValue string    `gorm:"size:255;not null" json:"pattern_value"`
+	PatternValue string    `gorm:"type:text;not null" json:"pattern_value"`
 	Enabled      bool      `gorm:"not null;default:true" json:"enabled"`
 	CreatedAt    time.Time `json:"created_at"`
+}
+
+type PolicyConfig struct {
+	ID            uint      `gorm:"primaryKey" json:"id"`
+	DefaultAction string    `gorm:"size:20;not null;default:allow" json:"default_action"`
+	UpdatedAt     time.Time `json:"updated_at"`
+	CreatedAt     time.Time `json:"created_at"`
 }
 
 type VisitLog struct {

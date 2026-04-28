@@ -1,13 +1,17 @@
 package middleware
 
-import "github.com/gin-gonic/gin"
+import (
+	"forlittle/server/internal/config"
 
-var allowedOrigins = map[string]struct{}{
-	"http://localhost:5173": {},
-	"http://127.0.0.1:5173": {},
-}
+	"github.com/gin-gonic/gin"
+)
 
-func CORS() gin.HandlerFunc {
+func CORS(cfg config.Config) gin.HandlerFunc {
+	allowedOrigins := make(map[string]struct{}, len(cfg.CORSAllowedOrigins))
+	for _, origin := range cfg.CORSAllowedOrigins {
+		allowedOrigins[origin] = struct{}{}
+	}
+
 	return func(c *gin.Context) {
 		origin := c.GetHeader("Origin")
 		if _, ok := allowedOrigins[origin]; ok {

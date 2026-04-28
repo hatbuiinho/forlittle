@@ -162,16 +162,20 @@ func (h AgentHandler) Policy(c *gin.Context) {
 	}
 
 	rules := []models.PolicyRule{}
-	if machine.LittleMonkID != nil {
-		if err := h.DB.Where("little_monk_id = ? AND enabled = ?", *machine.LittleMonkID, true).Order("id asc").Find(&rules).Error; err != nil {
-			internalServerError(c, "could not load policy")
-			return
-		}
+	if err := h.DB.Where("little_monk_id IS NULL AND enabled = ?", true).Order("id asc").Find(&rules).Error; err != nil {
+		internalServerError(c, "could not load policy")
+		return
+	}
+
+	config, err := getPolicyConfig(h.DB)
+	if err != nil {
+		internalServerError(c, "could not load policy config")
+		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"policy_version": time.Now().UTC().Unix(),
-		"default_action": "allow",
+		"default_action": config.DefaultAction,
 		"rules":          rules,
 	})
 }
@@ -224,12 +228,12 @@ func isValidRuleAction(value string) bool {
 }
 
 func isValidPatternType(value string) bool {
-	return value == "domain_exact" || value == "domain_suffix"
+	return value == "domain_exact" || value == "domain_suffix" || value == "domain_contains" || value == "title_contains_any"
 }
 
 func isValidLogAction(value string) bool {
 	switch value {
-	case "allowed", "allowed_whitelist", "blocked_blacklist":
+	case "allowed", "allowed_whitelist", "blocked_blacklist", "blocked_default", "blocked_title":
 		return true
 	default:
 		return false

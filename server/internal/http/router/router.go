@@ -10,9 +10,8 @@ import (
 )
 
 func New(cfg config.Config, database *gorm.DB) *gin.Engine {
-	_ = cfg
 	engine := gin.Default()
-	engine.Use(middleware.CORS())
+	engine.Use(middleware.CORS(cfg))
 
 	engine.GET("/healthz", handlers.Health)
 
@@ -34,17 +33,24 @@ func New(cfg config.Config, database *gorm.DB) *gin.Engine {
 
 		admin := api.Group("/admin")
 		{
-			admin.POST("/login", adminHandler.Login)
+			admin.POST("/auth/login", adminHandler.Login)
 
 			secured := admin.Group("")
-			secured.Use(middleware.AdminAuth(cfg))
+			secured.Use(middleware.AdminAuth(database, cfg))
+			secured.GET("/auth/me", adminHandler.Me)
+			secured.POST("/auth/logout", adminHandler.Logout)
 			secured.GET("/little-monks", adminHandler.ListLittleMonks)
 			secured.POST("/little-monks", adminHandler.CreateLittleMonk)
 			secured.GET("/machines", adminHandler.ListMachines)
 			secured.POST("/machines/:machineId/assign", adminHandler.AssignMachine)
+			secured.GET("/policy-config", adminHandler.GetPolicyConfig)
+			secured.PUT("/policy-config", adminHandler.UpdatePolicyConfig)
 			secured.GET("/rules", adminHandler.ListRules)
 			secured.POST("/rules", adminHandler.CreateRule)
+			secured.PATCH("/rules/:ruleId", adminHandler.UpdateRule)
+			secured.DELETE("/rules/:ruleId", adminHandler.DeleteRule)
 			secured.GET("/logs", adminHandler.ListLogs)
+			secured.GET("/log-groups", adminHandler.ListLogGroups)
 		}
 	}
 
