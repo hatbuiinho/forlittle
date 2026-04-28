@@ -29,12 +29,21 @@
           <dd id="pendingLogs">-</dd>
         </div>
         <div>
+          <dt>Log Queue</dt>
+          <dd id="logFlushStatus">-</dd>
+        </div>
+        <div>
+          <dt>Last Log Flush</dt>
+          <dd id="lastLogFlushAt">-</dd>
+        </div>
+        <div>
           <dt>Last Error</dt>
           <dd id="lastError">-</dd>
         </div>
       </dl>
       <div class="actions">
         <button id="refreshRuntimeButton" type="button">Reconnect Now</button>
+        <button id="syncPolicyButton" type="button">Get Policy Now</button>
         <button id="flushLogsButton" type="button">Flush Logs Now</button>
       </div>
       <section id="adminGatePanel" class="admin-panel">

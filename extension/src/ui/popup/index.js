@@ -21,8 +21,11 @@ const displayNameValue = document.getElementById("displayNameValue");
 const registrationStatus = document.getElementById("registrationStatus");
 const policyVersion = document.getElementById("policyVersion");
 const pendingLogs = document.getElementById("pendingLogs");
+const logFlushStatus = document.getElementById("logFlushStatus");
+const lastLogFlushAt = document.getElementById("lastLogFlushAt");
 const lastError = document.getElementById("lastError");
 const refreshRuntimeButton = document.getElementById("refreshRuntimeButton");
+const syncPolicyButton = document.getElementById("syncPolicyButton");
 const flushLogsButton = document.getElementById("flushLogsButton");
 let isAdminUnlocked = false;
 
@@ -40,6 +43,30 @@ function renderAdminPanels() {
   configPanel.hidden = !isAdminUnlocked;
 }
 
+function formatDateTime(value) {
+  if (!value) {
+    return "-";
+  }
+
+  return new Date(value).toLocaleString();
+}
+
+function queueStatusLabel(status, pendingCount) {
+  if (status === "syncing") {
+    return "Syncing logs...";
+  }
+
+  if (status === "error") {
+    return "Retrying automatically";
+  }
+
+  if (pendingCount > 0) {
+    return "Waiting for next flush";
+  }
+
+  return "Idle";
+}
+
 async function render() {
   const [config, runtimeState, devConfig] = await Promise.all([
     resolveRuntimeConfig(),
@@ -51,7 +78,10 @@ async function render() {
   displayNameValue.textContent = config.displayName || devConfig.displayName || "-";
   registrationStatus.textContent = runtimeState.registrationStatus;
   policyVersion.textContent = String(runtimeState.policyVersion || 0);
-  pendingLogs.textContent = String(runtimeState.pendingLogs || 0);
+  const pendingLogCount = runtimeState.pendingLogs || 0;
+  pendingLogs.textContent = String(pendingLogCount);
+  logFlushStatus.textContent = queueStatusLabel(runtimeState.logFlushStatus, pendingLogCount);
+  lastLogFlushAt.textContent = formatDateTime(runtimeState.lastLogFlushAt);
   lastError.textContent = runtimeState.lastError || "-";
   renderAdminPanels();
 
@@ -110,6 +140,16 @@ refreshRuntimeButton.addEventListener("click", async () => {
     await render();
   } catch (error) {
     savedMessage.textContent = error.message || "Reconnect failed.";
+  }
+});
+
+syncPolicyButton.addEventListener("click", async () => {
+  try {
+    await sendRuntimeMessage({ type: "sync-policy-now" });
+    savedMessage.textContent = "Policy synced.";
+    await render();
+  } catch (error) {
+    savedMessage.textContent = error.message || "Policy sync failed.";
   }
 });
 

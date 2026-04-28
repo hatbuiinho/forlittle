@@ -1,7 +1,7 @@
 import { resolveRuntimeConfig } from "../shared/config.js";
 import { ALARM_HEARTBEAT, ALARM_LOG_FLUSH, ALARM_POLICY_SYNC, LOG_FLUSH_BATCH_SIZE } from "../shared/constants.js";
 import { fetchPolicy, HttpError, registerAgent, sendHeartbeat, sendLogBatch } from "../shared/network.js";
-import { evaluatePolicy, domainFromUrl } from "../shared/rules.js";
+import { evaluatePolicy, evaluateTitlePolicy, domainFromUrl } from "../shared/rules.js";
 import { getRuntimeState, patchRuntimeState } from "../shared/runtime-state.js";
 import { clearDeviceToken, enqueueLog, getDeviceToken, getOrCreateProfileInstanceId, getPolicy, peekLogs, removeLogs, setPolicy } from "../shared/storage.js";
 
@@ -70,7 +70,7 @@ async function bootstrap(forceRefresh = false) {
     lastError: ""
   });
 
-  await ensureRegistered();
+  await ensureRegistered(forceRefresh);
   await syncPolicy();
   await flushLogs();
   await configureAlarms();
@@ -132,39 +132,73 @@ async function syncPolicy() {
   });
 }
 
-async function flushLogs() {
-  const events = await peekLogs();
-  if (!events.length) {
-    await patchRuntimeState({ pendingLogs: 0 });
-    return 0;
-  }
-
-  const batch = events.slice(0, LOG_FLUSH_BATCH_SIZE);
-
+async function sendLogBatchWithReauth(batch) {
   try {
     await sendLogBatch(runtimeConfig, batch);
   } catch (error) {
-    if (error instanceof HttpError && error.status === 401) {
-      await clearDeviceToken();
-      await ensureRegistered(true);
-      await sendLogBatch(runtimeConfig, batch);
-    } else {
+    if (!(error instanceof HttpError && error.status === 401)) {
+      throw error;
+    }
+
+    await clearDeviceToken();
+    await ensureRegistered(true);
+    await sendLogBatch(runtimeConfig, batch);
+  }
+}
+
+async function flushLogs({ drainAll = false } = {}) {
+  let sentCount = 0;
+  let events = await peekLogs();
+  const attemptedAt = new Date().toISOString();
+
+  if (!events.length) {
+    await patchRuntimeState({
+      pendingLogs: 0,
+      lastLogFlushAttemptAt: attemptedAt,
+      logFlushStatus: "idle"
+    });
+    return sentCount;
+  }
+
+  await patchRuntimeState({
+    pendingLogs: events.length,
+    lastLogFlushAttemptAt: attemptedAt,
+    logFlushStatus: "syncing"
+  });
+
+  while (events.length) {
+    const batch = events.slice(0, LOG_FLUSH_BATCH_SIZE);
+
+    try {
+      await sendLogBatchWithReauth(batch);
+    } catch (error) {
       await patchRuntimeState({
         pendingLogs: events.length,
+        logFlushStatus: "error",
         lastError: error.message || "Could not flush logs"
       });
       throw error;
     }
+
+    await removeLogs(batch.length);
+    sentCount += batch.length;
+
+    if (!drainAll) {
+      break;
+    }
+
+    events = await peekLogs();
   }
 
-  await removeLogs(batch.length);
   const remainingLogs = await peekLogs();
   await patchRuntimeState({
     pendingLogs: remainingLogs.length,
+    logFlushStatus: remainingLogs.length ? "pending" : "idle",
+    lastLogFlushAt: new Date().toISOString(),
     lastError: ""
   });
 
-  return batch.length;
+  return sentCount;
 }
 
 async function heartbeat() {
@@ -194,13 +228,17 @@ async function handleNavigation(details) {
     return;
   }
 
-  await enforcePolicy(details.tabId, details.url);
+  const result = await enforcePolicy(details.tabId, details.url);
+  if (result?.blocked) {
+    return;
+  }
+
   scheduleVisitCapture(details.tabId);
 }
 
 async function enforcePolicy(tabId, url) {
   if (!url?.startsWith("http")) {
-    return;
+    return { blocked: false };
   }
 
   const policy = await getPolicy();
@@ -208,9 +246,19 @@ async function enforcePolicy(tabId, url) {
   const result = evaluatePolicy(policy, domain);
 
   if (result.blocked) {
+    await recordVisit({
+      tabId,
+      url,
+      domain,
+      title: `Blocked: ${domain}`,
+      action: result.action
+    });
+
     const blockUrl = chrome.runtime.getURL(`src/ui/block/index.html?domain=${encodeURIComponent(domain)}`);
     await chrome.tabs.update(tabId, { url: blockUrl });
   }
+
+  return result;
 }
 
 function scheduleVisitCapture(tabId) {
@@ -227,17 +275,18 @@ function scheduleVisitCapture(tabId) {
   pendingVisitTimers.set(tabId, timerId);
 }
 
-function shouldSkipVisit(tabId, url, title) {
+function shouldSkipVisit(tabId, url, title, action) {
   const lastVisit = lastLoggedVisitByTab.get(tabId);
   if (!lastVisit) {
     return false;
   }
 
   const sameUrl = lastVisit.url === url;
-  const sameTitle = lastVisit.title === title;
+  const sameAction = lastVisit.action === action;
+  const sameTitle = lastVisit.title === title || action.startsWith("blocked_");
   const visitedRecently = Date.now() - lastVisit.loggedAt < 5000;
 
-  return sameUrl && sameTitle && visitedRecently;
+  return sameUrl && sameAction && sameTitle && visitedRecently;
 }
 
 async function captureVisitFromTab(tabId) {
@@ -249,27 +298,53 @@ async function captureVisitFromTab(tabId) {
   const url = tab.url;
   const title = tab.title || url;
 
-  if (shouldSkipVisit(tabId, url, title)) {
+  const policy = await getPolicy();
+  const domain = domainFromUrl(url);
+  const titleResult = evaluateTitlePolicy(policy, title);
+  if (titleResult.blocked) {
+    await recordVisit({
+      tabId,
+      url,
+      domain,
+      title,
+      action: titleResult.action
+    });
+
+    const blockUrl = chrome.runtime.getURL(`src/ui/block/index.html?domain=${encodeURIComponent(domain)}`);
+    await chrome.tabs.update(tabId, { url: blockUrl });
     return;
   }
 
-  const policy = await getPolicy();
-  const domain = domainFromUrl(url);
   const result = evaluatePolicy(policy, domain);
+
+  await recordVisit({
+    tabId,
+    url,
+    domain,
+    title: title || url,
+    action: result.action
+  });
+}
+
+async function recordVisit({ tabId, url, domain, title, action }) {
+  if (shouldSkipVisit(tabId, url, title, action)) {
+    return;
+  }
 
   await enqueueLog({
     profile_instance_id: profileInstanceId,
     tab_id: tabId,
     url,
     domain,
-    title: title || url,
+    title,
     visited_at: new Date().toISOString(),
-    action: result.action
+    action
   });
 
   lastLoggedVisitByTab.set(tabId, {
     url,
     title,
+    action,
     loggedAt: Date.now()
   });
 
@@ -296,8 +371,17 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
   if (message?.type === "flush-logs-now") {
     ensureInitialized()
-      .then(() => flushLogs())
+      .then(() => flushLogs({ drainAll: true }))
       .then((sent) => sendResponse({ ok: true, sent }))
+      .catch((error) => sendResponse({ ok: false, error: error.message }));
+
+    return true;
+  }
+
+  if (message?.type === "sync-policy-now") {
+    ensureInitialized()
+      .then(() => syncPolicy())
+      .then(() => sendResponse({ ok: true }))
       .catch((error) => sendResponse({ ok: false, error: error.message }));
 
     return true;

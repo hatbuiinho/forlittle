@@ -9,7 +9,10 @@ const defaultState = {
   pendingLogs: 0,
   lastError: "",
   lastSyncAt: "",
-  lastRegistrationAt: ""
+  lastRegistrationAt: "",
+  lastLogFlushAt: "",
+  lastLogFlushAttemptAt: "",
+  logFlushStatus: "idle"
 };
 
 export async function getRuntimeState() {

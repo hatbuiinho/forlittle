@@ -9,16 +9,17 @@ export class HttpError extends Error {
 }
 
 async function request(baseUrl, path, options = {}) {
+  const { skipAuth = false, ...fetchOptions } = options;
   const token = await getDeviceToken();
   const headers = new Headers(options.headers || {});
 
   headers.set("Content-Type", "application/json");
-  if (token) {
+  if (!skipAuth && token) {
     headers.set("Authorization", `Bearer ${token}`);
   }
 
   const response = await fetch(`${baseUrl}${path}`, {
-    ...options,
+    ...fetchOptions,
     headers
   });
 
@@ -46,6 +47,7 @@ export async function registerAgent(config, profileInstanceId) {
 
   const data = await request(config.serverBaseUrl, "/api/v1/agents/register", {
     method: "POST",
+    skipAuth: true,
     body: JSON.stringify(payload)
   });
 
