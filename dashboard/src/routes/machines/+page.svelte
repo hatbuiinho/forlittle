@@ -33,47 +33,68 @@
 	summary="This page tracks which laptops are enrolled, how they are named, and when they last checked in."
 >
 	{#if loading}
-		<div class="placeholder">
-			<p>Loading machines from the backend...</p>
+		<div class="rounded-2xl border border-black/10 bg-white/95 p-5">
+			<p class="m-0 leading-relaxed text-[#555555]">Loading machines from the backend...</p>
 		</div>
 	{:else if errorMessage}
-		<div class="placeholder">
-			<p>{errorMessage}</p>
+		<div class="rounded-2xl border border-black/10 bg-white/95 p-5">
+			<p class="m-0 leading-relaxed text-[#555555]">{errorMessage}</p>
 		</div>
 	{:else if machines.length === 0}
-		<div class="placeholder">
-			<p>No machines have registered yet.</p>
+		<div class="rounded-2xl border border-black/10 bg-white/95 p-5">
+			<p class="m-0 leading-relaxed text-[#555555]">No machines have registered yet.</p>
 		</div>
 	{:else}
-		<div class="machine-list">
+		<div class="grid gap-4">
 			{#each machines as machine (machine.id)}
-				<article class="machine-card">
-					<div class="machine-card__header">
+				<article
+					class="rounded-2xl border border-black/10 bg-white/95 p-5 shadow-[0_16px_36px_rgba(0,0,0,0.05)]"
+				>
+					<div class="mb-4 flex items-start justify-between gap-4">
 						<div>
-							<p class="eyebrow">Machine</p>
-							<h3>{machine.display_name || machine.machine_id}</h3>
-							<p class="machine-card__subtitle">Shared laptop activity source</p>
+							<p class="mb-2 text-xs font-bold tracking-[0.14em] text-[#3d3d3d] uppercase">
+								Machine
+							</p>
+							<h3 class="m-0 text-xl font-semibold text-[#111111]">
+								{machine.display_name || machine.machine_id}
+							</h3>
+							<p class="mt-2 text-sm text-[#555555]">Shared laptop activity source</p>
 						</div>
-						<span class:pending={machine.status !== 'active'} class="status-pill"
-							>{machine.status}</span
+						<span
+							class={[
+								'inline-flex items-center justify-center rounded-full px-3 py-1.5 text-xs font-bold capitalize',
+								machine.status === 'active'
+									? 'bg-[#496b3a]/15 text-[#25441f]'
+									: 'bg-[#496b3a]/10 text-[#25441f]'
+							]}
 						>
+							{machine.status}
+						</span>
 					</div>
 
-					<dl class="machine-meta">
+					<dl class="grid gap-3 md:grid-cols-3">
 						<div>
-							<span class="machine-meta__icon icon-[solar--hashtag-square-bold-duotone]"></span>
-							<dt>Machine ID</dt>
-							<dd>{machine.machine_id}</dd>
+							<span
+								class="mb-2 icon-[solar--hashtag-square-bold-duotone] inline-flex text-lg text-[#25441f]"
+							></span>
+							<dt class="text-xs font-bold tracking-[0.1em] text-[#555555] uppercase">
+								Machine ID
+							</dt>
+							<dd class="mt-1 break-words text-[#111111]">{machine.machine_id}</dd>
 						</div>
 						<div>
-							<span class="machine-meta__icon icon-[solar--clock-circle-bold-duotone]"></span>
-							<dt>Last Seen</dt>
-							<dd>{formatDate(machine.last_seen_at)}</dd>
+							<span
+								class="mb-2 icon-[solar--clock-circle-bold-duotone] inline-flex text-lg text-[#25441f]"
+							></span>
+							<dt class="text-xs font-bold tracking-[0.1em] text-[#555555] uppercase">Last Seen</dt>
+							<dd class="mt-1 text-[#111111]">{formatDate(machine.last_seen_at)}</dd>
 						</div>
 						<div>
-							<span class="machine-meta__icon icon-[solar--calendar-mark-bold-duotone]"></span>
-							<dt>Created</dt>
-							<dd>{formatDate(machine.created_at)}</dd>
+							<span
+								class="mb-2 icon-[solar--calendar-mark-bold-duotone] inline-flex text-lg text-[#25441f]"
+							></span>
+							<dt class="text-xs font-bold tracking-[0.1em] text-[#555555] uppercase">Created</dt>
+							<dd class="mt-1 text-[#111111]">{formatDate(machine.created_at)}</dd>
 						</div>
 					</dl>
 				</article>
