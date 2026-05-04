@@ -125,7 +125,7 @@ func setAdminSessionCookie(c *gin.Context, cfg config.Config, token string, expi
 		MaxAge:   int(time.Until(expiresAt).Seconds()),
 		HttpOnly: true,
 		Secure:   cfg.AdminCookieSecure,
-		SameSite: http.SameSiteLaxMode,
+		SameSite: adminCookieSameSite(cfg.AdminCookieSameSite),
 	})
 }
 
@@ -137,8 +137,19 @@ func clearAdminSessionCookie(c *gin.Context, cfg config.Config) {
 		MaxAge:   -1,
 		HttpOnly: true,
 		Secure:   cfg.AdminCookieSecure,
-		SameSite: http.SameSiteLaxMode,
+		SameSite: adminCookieSameSite(cfg.AdminCookieSameSite),
 	})
+}
+
+func adminCookieSameSite(value string) http.SameSite {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "strict":
+		return http.SameSiteStrictMode
+	case "none":
+		return http.SameSiteNoneMode
+	default:
+		return http.SameSiteLaxMode
+	}
 }
 
 func (h AdminHandler) ListLittleMonks(c *gin.Context) {

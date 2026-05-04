@@ -15,6 +15,7 @@ type Config struct {
 	AdminDisplayName     string
 	AdminSessionTTLHours int
 	AdminCookieSecure    bool
+	AdminCookieSameSite  string
 	CORSAllowedOrigins   []string
 }
 
@@ -28,6 +29,7 @@ func Load() Config {
 		AdminDisplayName:     getEnv("ADMIN_DISPLAY_NAME", "Temple Admin"),
 		AdminSessionTTLHours: getEnvInt("ADMIN_SESSION_TTL_HOURS", 24),
 		AdminCookieSecure:    getEnvBool("ADMIN_COOKIE_SECURE", false),
+		AdminCookieSameSite:  strings.ToLower(getEnv("ADMIN_COOKIE_SAME_SITE", "lax")),
 		CORSAllowedOrigins:   getEnvList("CORS_ALLOWED_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173"),
 	}
 }
