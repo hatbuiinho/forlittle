@@ -17,12 +17,20 @@ required_env "SAMBA_ADMIN_PASSWORD"
 SAMBA_DNS_FORWARDER="${SAMBA_DNS_FORWARDER:-1.1.1.1}"
 SAMBA_LOG_LEVEL="${SAMBA_LOG_LEVEL:-1}"
 SAMBA_HOST_IP="${SAMBA_HOST_IP:-}"
-SAMBA_INTERFACES="${SAMBA_INTERFACES:-lo tailscale0}"
+SAMBA_INTERFACES="${SAMBA_INTERFACES:-}"
 SAMBA_REALM_UPPER="$(echo "${SAMBA_REALM}" | tr '[:lower:]' '[:upper:]')"
 SAMBA_DOMAIN_UPPER="$(echo "${SAMBA_DOMAIN}" | tr '[:lower:]' '[:upper:]')"
 SAMBA_DNS_DOMAIN="$(echo "${SAMBA_REALM}" | tr '[:upper:]' '[:lower:]')"
 SAMBA_HOST_FQDN="${SAMBA_HOSTNAME}.${SAMBA_DNS_DOMAIN}"
 SAMBA_MARKER_FILE="/var/lib/samba/.forlittle-provisioned"
+
+if [[ -z "${SAMBA_INTERFACES}" ]]; then
+  if [[ -n "${SAMBA_HOST_IP}" ]]; then
+    SAMBA_INTERFACES="127.0.0.1 ${SAMBA_HOST_IP}"
+  else
+    SAMBA_INTERFACES="127.0.0.1"
+  fi
+fi
 
 export KRB5_CONFIG=/etc/krb5.conf
 

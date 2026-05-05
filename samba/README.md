@@ -42,14 +42,14 @@ SAMBA_REALM=AD.HATBUINHO.ME
 SAMBA_DOMAIN=FORLITTLE
 SAMBA_HOSTNAME=dc1
 SAMBA_HOST_IP=
-SAMBA_INTERFACES=lo tailscale0
+SAMBA_INTERFACES=
 SAMBA_ADMIN_PASSWORD=replace-with-strong-password
 SAMBA_DNS_FORWARDER=1.1.1.1
 SAMBA_LOG_LEVEL=1
 ```
 
 Set `SAMBA_HOST_IP` to the VPN/private IP that Windows clients will use for the DC if the server has multiple interfaces.
-Set `SAMBA_INTERFACES` to the exact interfaces Samba should bind. For a Tailscale setup, keep `lo tailscale0` so Samba ignores Docker bridge interfaces such as `docker0`.
+Leave `SAMBA_INTERFACES` empty unless you need to override it. By default the entrypoint binds Samba to `127.0.0.1` and `SAMBA_HOST_IP`, which avoids Docker bridge interfaces such as `docker0` and is more reliable than interface names in host-network containers.
 
 Start:
 
