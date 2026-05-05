@@ -1,0 +1,39 @@
+services:
+  samba-ad-dc:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: forlittle-samba-ad-dc
+    hostname: ${SAMBA_HOSTNAME:-dc1}
+    environment:
+      SAMBA_REALM: ${SAMBA_REALM:-AD.HATBUINHO.ME}
+      SAMBA_DOMAIN: ${SAMBA_DOMAIN:-FORLITTLE}
+      SAMBA_HOSTNAME: ${SAMBA_HOSTNAME:-dc1}
+      SAMBA_HOST_IP: ${SAMBA_HOST_IP:-}
+      SAMBA_ADMIN_PASSWORD: ${SAMBA_ADMIN_PASSWORD:?SAMBA_ADMIN_PASSWORD is required}
+      SAMBA_DNS_FORWARDER: ${SAMBA_DNS_FORWARDER:-1.1.1.1}
+      SAMBA_LOG_LEVEL: ${SAMBA_LOG_LEVEL:-1}
+    network_mode: host
+    restart: unless-stopped
+    volumes:
+      - samba_etc:/etc/samba
+      - samba_lib:/var/lib/samba
+      - samba_cache:/var/cache/samba
+      - samba_log:/var/log/samba
+    stop_grace_period: 30s
+    healthcheck:
+      test: ["CMD-SHELL", "samba-tool domain info 127.0.0.1 >/dev/null 2>&1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+volumes:
+  samba_etc:
+    name: forlittle_samba_etc
+  samba_lib:
+    name: forlittle_samba_lib
+  samba_cache:
+    name: forlittle_samba_cache
+  samba_log:
+    name: forlittle_samba_log
