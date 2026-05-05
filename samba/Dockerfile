@@ -12,6 +12,7 @@ RUN apt-get update \
         krb5-user \
         procps \
         samba-ad-dc \
+        samba-ad-provision \
         smbclient \
         winbind \
     && apt-get clean \
