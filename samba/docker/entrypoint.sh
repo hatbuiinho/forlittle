@@ -18,13 +18,35 @@ SAMBA_DNS_FORWARDER="${SAMBA_DNS_FORWARDER:-1.1.1.1}"
 SAMBA_LOG_LEVEL="${SAMBA_LOG_LEVEL:-1}"
 SAMBA_HOST_IP="${SAMBA_HOST_IP:-}"
 SAMBA_REALM_UPPER="$(echo "${SAMBA_REALM}" | tr '[:lower:]' '[:upper:]')"
+SAMBA_DOMAIN_UPPER="$(echo "${SAMBA_DOMAIN}" | tr '[:lower:]' '[:upper:]')"
 SAMBA_DNS_DOMAIN="$(echo "${SAMBA_REALM}" | tr '[:upper:]' '[:lower:]')"
 SAMBA_HOST_FQDN="${SAMBA_HOSTNAME}.${SAMBA_DNS_DOMAIN}"
+SAMBA_MARKER_FILE="/var/lib/samba/.forlittle-provisioned"
 
 export KRB5_CONFIG=/etc/krb5.conf
 
-if [[ ! -f /var/lib/samba/private/sam.ldb ]]; then
-  echo "Provisioning Samba AD DC: realm=${SAMBA_REALM_UPPER} domain=${SAMBA_DOMAIN} hostname=${SAMBA_HOSTNAME}"
+reset_partial_state() {
+  echo "Resetting incomplete Samba provision state"
+  rm -rf /etc/samba/*
+  rm -rf /var/lib/samba/*
+  rm -rf /var/cache/samba/*
+  rm -rf /var/log/samba/*
+}
+
+needs_provision=true
+if [[ -f "${SAMBA_MARKER_FILE}" ]]; then
+  if [[ -f /var/lib/samba/private/sam.ldb && -f /var/lib/samba/private/secrets.ldb && -f /etc/samba/smb.conf ]]; then
+    needs_provision=false
+  else
+    echo "Provision marker exists but required Samba files are missing."
+    exit 1
+  fi
+elif [[ -e /var/lib/samba/private/sam.ldb || -e /var/lib/samba/private/secrets.ldb || -e /etc/samba/smb.conf ]]; then
+  reset_partial_state
+fi
+
+if [[ "${needs_provision}" == "true" ]]; then
+  echo "Provisioning Samba AD DC: realm=${SAMBA_REALM_UPPER} domain=${SAMBA_DOMAIN_UPPER} hostname=${SAMBA_HOSTNAME}"
 
   rm -f /etc/samba/smb.conf
 
@@ -34,7 +56,7 @@ if [[ ! -f /var/lib/samba/private/sam.ldb ]]; then
     --use-rfc2307
     --dns-backend=SAMBA_INTERNAL
     --realm="${SAMBA_REALM_UPPER}"
-    --domain="${SAMBA_DOMAIN}"
+    --domain="${SAMBA_DOMAIN_UPPER}"
     --host-name="${SAMBA_HOSTNAME}"
     --adminpass="${SAMBA_ADMIN_PASSWORD}"
     --option="dns forwarder = ${SAMBA_DNS_FORWARDER}"
@@ -47,6 +69,7 @@ if [[ ! -f /var/lib/samba/private/sam.ldb ]]; then
   samba-tool "${provision_args[@]}"
 
   cp -f /var/lib/samba/private/krb5.conf /etc/krb5.conf
+  touch "${SAMBA_MARKER_FILE}"
 else
   echo "Existing Samba AD database found. Skipping provision."
 fi

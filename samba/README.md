@@ -54,6 +54,15 @@ Start:
 docker compose up -d --build
 ```
 
+If a previous provision failed halfway, remove the volumes before retrying:
+
+```bash
+docker compose down -v
+docker compose up -d --build
+```
+
+The container keeps its own provision marker. If Samba files exist without that marker, the entrypoint treats them as incomplete state and reprovisions from scratch.
+
 Check:
 
 ```bash
