@@ -42,12 +42,14 @@ SAMBA_REALM=AD.HATBUINHO.ME
 SAMBA_DOMAIN=FORLITTLE
 SAMBA_HOSTNAME=dc1
 SAMBA_HOST_IP=
+SAMBA_INTERFACES=lo tailscale0
 SAMBA_ADMIN_PASSWORD=replace-with-strong-password
 SAMBA_DNS_FORWARDER=1.1.1.1
 SAMBA_LOG_LEVEL=1
 ```
 
 Set `SAMBA_HOST_IP` to the VPN/private IP that Windows clients will use for the DC if the server has multiple interfaces.
+Set `SAMBA_INTERFACES` to the exact interfaces Samba should bind. For a Tailscale setup, keep `lo tailscale0` so Samba ignores Docker bridge interfaces such as `docker0`.
 
 Start:
 
@@ -63,6 +65,16 @@ docker compose up -d --build
 ```
 
 The container keeps its own provision marker. If Samba files exist without that marker, the entrypoint treats them as incomplete state and reprovisions from scratch.
+
+If `systemd-resolved` is holding port `53`, disable the local DNS stub listener on the host before starting Samba:
+
+```bash
+sudo sed -i 's/^#\\?DNSStubListener=.*/DNSStubListener=no/' /etc/systemd/resolved.conf
+sudo systemctl restart systemd-resolved
+sudo ss -tulpn | grep ':53'
+```
+
+After that, Samba should be the only DNS server binding on `tailscale0`.
 
 Check:
 
