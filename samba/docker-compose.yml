@@ -14,6 +14,8 @@ services:
       SAMBA_DNS_FORWARDER: ${SAMBA_DNS_FORWARDER:-1.1.1.1}
       SAMBA_LOG_LEVEL: ${SAMBA_LOG_LEVEL:-1}
     network_mode: host
+    cap_add:
+      - SYS_ADMIN
     restart: unless-stopped
     volumes:
       - samba_etc:/etc/samba

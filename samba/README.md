@@ -13,6 +13,7 @@ Samba Active Directory Domain Controller for Windows clients that need domain jo
 - Use a dedicated Ubuntu VPS or VM for the DC role. Avoid running file/print services on the AD DC.
 - Windows clients must be Pro, Education, or Enterprise to join a domain.
 - `network_mode: host` is intentional because AD DC needs DNS, Kerberos, LDAP, SMB, and RPC behavior that is fragile through normal Docker port publishing.
+- `CAP_SYS_ADMIN` is intentionally added because Samba AD DC needs to set NT ACL metadata on `SYSVOL/NETLOGON` during provision. Without it, provisioning commonly fails at `set_nt_acl`.
 
 ## Domain Defaults
 
