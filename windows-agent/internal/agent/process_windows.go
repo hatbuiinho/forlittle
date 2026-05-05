@@ -11,12 +11,13 @@ import (
 )
 
 type cimChromeProcess struct {
-	ProcessID   any    `json:"ProcessId"`
-	CommandLine string `json:"CommandLine"`
+	ProcessID       any    `json:"ProcessId"`
+	ParentProcessID any    `json:"ParentProcessId"`
+	CommandLine     string `json:"CommandLine"`
 }
 
 func listChromeProcesses(ctx context.Context) ([]ChromeProcess, error) {
-	script := `Get-CimInstance Win32_Process -Filter "Name = 'chrome.exe'" | Select-Object ProcessId,CommandLine | ConvertTo-Json -Compress`
+	script := `Get-CimInstance Win32_Process -Filter "Name = 'chrome.exe'" | Select-Object ProcessId,ParentProcessId,CommandLine | ConvertTo-Json -Compress`
 	cmd := exec.CommandContext(ctx, "powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script)
 	output, err := cmd.Output()
 	if err != nil {
@@ -47,7 +48,12 @@ func listChromeProcesses(ctx context.Context) ([]ChromeProcess, error) {
 			continue
 		}
 
-		result = append(result, ChromeProcess{PID: pid, CommandLine: process.CommandLine})
+		parentPID, _ := parseProcessID(process.ParentProcessID)
+		result = append(result, ChromeProcess{
+			PID:         pid,
+			ParentPID:   parentPID,
+			CommandLine: process.CommandLine,
+		})
 	}
 
 	return result, nil

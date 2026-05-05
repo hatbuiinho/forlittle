@@ -14,7 +14,7 @@ Native Windows Service mode is intentionally not included in this first cut. A s
 ## Build
 
 ```powershell
-go build -o forlittle-agent.exe .\cmd\forlittle-agent
+go build -o forlittle-agent.exe ./cmd/forlittle-agent
 ```
 
 ## Run

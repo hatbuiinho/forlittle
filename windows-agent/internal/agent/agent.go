@@ -54,17 +54,26 @@ func (r Runner) enforce(ctx context.Context) error {
 		return err
 	}
 
+	chromePIDs := make(map[int]struct{}, len(processes))
+	for _, process := range processes {
+		chromePIDs[process.PID] = struct{}{}
+	}
+
 	managedCount := 0
 	for _, process := range processes {
+		if _, parentIsChrome := chromePIDs[process.ParentPID]; parentIsChrome {
+			continue
+		}
+
 		if r.isManagedChrome(process.CommandLine) {
 			managedCount++
 			continue
 		}
 
 		if r.cfg.KillUnmanagedChrome {
-			r.logger.Printf("killing unmanaged chrome pid=%d", process.PID)
+			r.logger.Printf("killing unmanaged chrome root pid=%d", process.PID)
 			if err := killProcess(ctx, process.PID); err != nil {
-				r.logger.Printf("kill unmanaged chrome pid=%d failed: %v", process.PID, err)
+				r.logger.Printf("kill unmanaged chrome root pid=%d failed: %v", process.PID, err)
 			}
 		}
 	}

@@ -1,6 +1,8 @@
 package agent
 
 type ChromeProcess struct {
-	PID         int
+	PID       int
+	ParentPID int
+
 	CommandLine string
 }
