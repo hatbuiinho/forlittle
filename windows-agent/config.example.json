@@ -1,0 +1,13 @@
+{
+  "chrome_path": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+  "extension_path": "C:\\ProgramData\\ForLittle\\Extension",
+  "profile_path": "C:\\ProgramData\\ForLittle\\ChromeProfile",
+  "relaunch_delay_seconds": 2,
+  "scan_interval_seconds": 3,
+  "kill_unmanaged_chrome": true,
+  "chrome_args": [
+    "--no-first-run",
+    "--disable-sync",
+    "--disable-features=Translate"
+  ]
+}
