@@ -28,6 +28,12 @@ func (r Runner) Run(ctx context.Context) error {
 		return fmt.Errorf("create profile path: %w", err)
 	}
 
+	if r.cfg.ForceRestartOnStart {
+		if err := r.killChromeRoots(ctx); err != nil {
+			r.logger.Printf("force restart cleanup failed: %v", err)
+		}
+	}
+
 	ticker := time.NewTicker(r.cfg.ScanInterval())
 	defer ticker.Stop()
 
@@ -91,6 +97,31 @@ func (r Runner) enforce(ctx context.Context) error {
 	return nil
 }
 
+func (r Runner) killChromeRoots(ctx context.Context) error {
+	processes, err := listChromeProcesses(ctx)
+	if err != nil {
+		return err
+	}
+
+	chromePIDs := make(map[int]struct{}, len(processes))
+	for _, process := range processes {
+		chromePIDs[process.PID] = struct{}{}
+	}
+
+	for _, process := range processes {
+		if _, parentIsChrome := chromePIDs[process.ParentPID]; parentIsChrome {
+			continue
+		}
+
+		r.logger.Printf("force killing chrome root pid=%d", process.PID)
+		if err := killProcess(ctx, process.PID); err != nil {
+			r.logger.Printf("force kill chrome root pid=%d failed: %v", process.PID, err)
+		}
+	}
+
+	return nil
+}
+
 func (r Runner) launchChrome(ctx context.Context) error {
 	args := []string{
 		"--user-data-dir=" + r.cfg.ProfilePath,
@@ -100,7 +131,11 @@ func (r Runner) launchChrome(ctx context.Context) error {
 	if r.cfg.StrictExtensionOnly {
 		args = append(args, "--disable-extensions-except="+r.cfg.ExtensionPath)
 	}
+	if r.cfg.ChromeLogPath != "" {
+		args = append(args, "--enable-logging", "--v=1", "--log-file="+r.cfg.ChromeLogPath)
+	}
 	args = append(args, r.cfg.ChromeArgs...)
+	args = append(args, r.cfg.StartupURLs...)
 
 	r.logger.Printf("launching chrome with args=%q", args)
 	cmd := exec.CommandContext(ctx, r.cfg.ChromePath, args...)

@@ -17,6 +17,9 @@ type Config struct {
 	ScanIntervalSeconds  int      `json:"scan_interval_seconds"`
 	KillUnmanagedChrome  bool     `json:"kill_unmanaged_chrome"`
 	StrictExtensionOnly  bool     `json:"strict_extension_only"`
+	ForceRestartOnStart  bool     `json:"force_restart_on_start"`
+	ChromeLogPath        string   `json:"chrome_log_path"`
+	StartupURLs          []string `json:"startup_urls"`
 	ChromeArgs           []string `json:"chrome_args"`
 }
 

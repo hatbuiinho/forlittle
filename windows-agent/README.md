@@ -27,6 +27,15 @@ Create `config.json` from `config.example.json` and adjust paths.
 
 `extension_path` must point to the unpacked extension folder that directly contains `manifest.json`. Do not point it to Chrome's installed extension store folder.
 
+Install the unpacked extension into `ProgramData` before testing with a standard user:
+
+```powershell
+.\scripts\install-extension.ps1 `
+  -SourceExtensionPath "D:\For Little\extension"
+```
+
+This copies the extension to `C:\ProgramData\ForLittle\Extension` and grants standard users read/execute access. Avoid loading the extension directly from an admin user's project folder because the Chrome process may not be able to read it.
+
 Recommended first test config:
 
 ```json
@@ -38,10 +47,16 @@ Recommended first test config:
   "scan_interval_seconds": 3,
   "kill_unmanaged_chrome": true,
   "strict_extension_only": false,
+  "force_restart_on_start": true,
+  "chrome_log_path": "C:\\ProgramData\\ForLittle\\chrome-debug.log",
+  "startup_urls": [
+    "chrome://extensions/"
+  ],
   "chrome_args": [
     "--profile-directory=Default",
     "--no-first-run",
     "--disable-sync",
+    "--disable-background-mode",
     "--disable-features=Translate"
   ]
 }
@@ -54,6 +69,14 @@ C:\ProgramData\ForLittle\Extension\manifest.json
 ```
 
 Keep `strict_extension_only` as `false` while testing extension loading. After the extension loads reliably, it can be changed to `true` to add `--disable-extensions-except`.
+
+Keep `force_restart_on_start` as `true` while testing. It closes existing Chrome root processes before launching the managed instance, which prevents Chrome from reusing an old process and ignoring `--load-extension`.
+
+When debugging side-load issues, inspect:
+
+```text
+C:\ProgramData\ForLittle\chrome-debug.log
+```
 
 ## Auto Start With Scheduled Task
 

@@ -6,10 +6,16 @@
   "scan_interval_seconds": 3,
   "kill_unmanaged_chrome": true,
   "strict_extension_only": false,
+  "force_restart_on_start": true,
+  "chrome_log_path": "C:\\ProgramData\\ForLittle\\chrome-debug.log",
+  "startup_urls": [
+    "chrome://extensions/"
+  ],
   "chrome_args": [
     "--profile-directory=Default",
     "--no-first-run",
     "--disable-sync",
+    "--disable-background-mode",
     "--disable-features=Translate"
   ]
 }
