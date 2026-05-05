@@ -5,6 +5,7 @@
   "relaunch_delay_seconds": 2,
   "scan_interval_seconds": 3,
   "kill_unmanaged_chrome": true,
+  "strict_extension_only": false,
   "chrome_args": [
     "--profile-directory=Default",
     "--no-first-run",

@@ -16,6 +16,7 @@ type Config struct {
 	RelaunchDelaySeconds int      `json:"relaunch_delay_seconds"`
 	ScanIntervalSeconds  int      `json:"scan_interval_seconds"`
 	KillUnmanagedChrome  bool     `json:"kill_unmanaged_chrome"`
+	StrictExtensionOnly  bool     `json:"strict_extension_only"`
 	ChromeArgs           []string `json:"chrome_args"`
 }
 

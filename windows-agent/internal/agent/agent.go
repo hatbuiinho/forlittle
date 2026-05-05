@@ -94,8 +94,11 @@ func (r Runner) enforce(ctx context.Context) error {
 func (r Runner) launchChrome(ctx context.Context) error {
 	args := []string{
 		"--user-data-dir=" + r.cfg.ProfilePath,
-		"--disable-extensions-except=" + r.cfg.ExtensionPath,
 		"--load-extension=" + r.cfg.ExtensionPath,
+		"--enable-extensions",
+	}
+	if r.cfg.StrictExtensionOnly {
+		args = append(args, "--disable-extensions-except="+r.cfg.ExtensionPath)
 	}
 	args = append(args, r.cfg.ChromeArgs...)
 
@@ -110,9 +113,14 @@ func (r Runner) launchChrome(ctx context.Context) error {
 
 func (r Runner) isManagedChrome(commandLine string) bool {
 	normalized := normalizeCommandLine(commandLine)
-	return strings.Contains(normalized, normalizeCommandLine("--user-data-dir="+r.cfg.ProfilePath)) &&
-		strings.Contains(normalized, normalizeCommandLine("--disable-extensions-except="+r.cfg.ExtensionPath)) &&
-		strings.Contains(normalized, normalizeCommandLine("--load-extension="+r.cfg.ExtensionPath))
+	hasManagedProfile := strings.Contains(normalized, normalizeCommandLine("--user-data-dir="+r.cfg.ProfilePath))
+	hasLoadedExtension := strings.Contains(normalized, normalizeCommandLine("--load-extension="+r.cfg.ExtensionPath))
+	if !r.cfg.StrictExtensionOnly {
+		return hasManagedProfile && hasLoadedExtension
+	}
+
+	hasStrictExtension := strings.Contains(normalized, normalizeCommandLine("--disable-extensions-except="+r.cfg.ExtensionPath))
+	return hasManagedProfile && hasLoadedExtension && hasStrictExtension
 }
 
 func normalizeCommandLine(value string) string {

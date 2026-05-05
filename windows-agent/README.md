@@ -37,6 +37,7 @@ Recommended first test config:
   "relaunch_delay_seconds": 2,
   "scan_interval_seconds": 3,
   "kill_unmanaged_chrome": true,
+  "strict_extension_only": false,
   "chrome_args": [
     "--profile-directory=Default",
     "--no-first-run",
@@ -51,6 +52,8 @@ Before running the agent, make sure this exists:
 ```text
 C:\ProgramData\ForLittle\Extension\manifest.json
 ```
+
+Keep `strict_extension_only` as `false` while testing extension loading. After the extension loads reliably, it can be changed to `true` to add `--disable-extensions-except`.
 
 ## Auto Start With Scheduled Task
 
