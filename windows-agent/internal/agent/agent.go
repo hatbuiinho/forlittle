@@ -94,11 +94,12 @@ func (r Runner) enforce(ctx context.Context) error {
 func (r Runner) launchChrome(ctx context.Context) error {
 	args := []string{
 		"--user-data-dir=" + r.cfg.ProfilePath,
+		"--disable-extensions-except=" + r.cfg.ExtensionPath,
 		"--load-extension=" + r.cfg.ExtensionPath,
 	}
 	args = append(args, r.cfg.ChromeArgs...)
 
-	r.logger.Printf("launching chrome")
+	r.logger.Printf("launching chrome with args=%q", args)
 	cmd := exec.CommandContext(ctx, r.cfg.ChromePath, args...)
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("launch chrome: %w", err)
@@ -110,6 +111,7 @@ func (r Runner) launchChrome(ctx context.Context) error {
 func (r Runner) isManagedChrome(commandLine string) bool {
 	normalized := normalizeCommandLine(commandLine)
 	return strings.Contains(normalized, normalizeCommandLine("--user-data-dir="+r.cfg.ProfilePath)) &&
+		strings.Contains(normalized, normalizeCommandLine("--disable-extensions-except="+r.cfg.ExtensionPath)) &&
 		strings.Contains(normalized, normalizeCommandLine("--load-extension="+r.cfg.ExtensionPath))
 }
 

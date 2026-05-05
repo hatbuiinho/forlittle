@@ -60,7 +60,7 @@ func listChromeProcesses(ctx context.Context) ([]ChromeProcess, error) {
 }
 
 func killProcess(ctx context.Context, pid int) error {
-	cmd := exec.CommandContext(ctx, "taskkill.exe", "/PID", strconv.Itoa(pid), "/F")
+	cmd := exec.CommandContext(ctx, "taskkill.exe", "/PID", strconv.Itoa(pid), "/F", "/T")
 	return cmd.Run()
 }
 

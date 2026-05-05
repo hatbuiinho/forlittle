@@ -25,6 +25,33 @@ go build -o forlittle-agent.exe ./cmd/forlittle-agent
 
 Create `config.json` from `config.example.json` and adjust paths.
 
+`extension_path` must point to the unpacked extension folder that directly contains `manifest.json`. Do not point it to Chrome's installed extension store folder.
+
+Recommended first test config:
+
+```json
+{
+  "chrome_path": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+  "extension_path": "C:\\ProgramData\\ForLittle\\Extension",
+  "profile_path": "C:\\ProgramData\\ForLittle\\ChromeUserData",
+  "relaunch_delay_seconds": 2,
+  "scan_interval_seconds": 3,
+  "kill_unmanaged_chrome": true,
+  "chrome_args": [
+    "--profile-directory=Default",
+    "--no-first-run",
+    "--disable-sync",
+    "--disable-features=Translate"
+  ]
+}
+```
+
+Before running the agent, make sure this exists:
+
+```text
+C:\ProgramData\ForLittle\Extension\manifest.json
+```
+
 ## Auto Start With Scheduled Task
 
 Run PowerShell as Administrator:

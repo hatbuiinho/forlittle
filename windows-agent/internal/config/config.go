@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"time"
 )
 
@@ -54,6 +55,11 @@ func (c Config) Validate() error {
 
 	if c.ProfilePath == "" {
 		return errors.New("profile_path is required")
+	}
+
+	manifestPath := filepath.Join(c.ExtensionPath, "manifest.json")
+	if _, err := os.Stat(manifestPath); err != nil {
+		return fmt.Errorf("extension_path must point to an unpacked extension folder containing manifest.json: %w", err)
 	}
 
 	if c.RelaunchDelaySeconds < 1 {
