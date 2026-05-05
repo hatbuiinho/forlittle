@@ -43,13 +43,17 @@ SAMBA_DOMAIN=FORLITTLE
 SAMBA_HOSTNAME=dc1
 SAMBA_HOST_IP=
 SAMBA_INTERFACES=
+SAMBA_BIND_INTERFACES_ONLY=no
 SAMBA_ADMIN_PASSWORD=replace-with-strong-password
 SAMBA_DNS_FORWARDER=1.1.1.1
 SAMBA_LOG_LEVEL=1
 ```
 
 Set `SAMBA_HOST_IP` to the VPN/private IP that Windows clients will use for the DC if the server has multiple interfaces.
-Leave `SAMBA_INTERFACES` empty unless you need to override it. By default the entrypoint binds Samba to `127.0.0.1` and `SAMBA_HOST_IP`, which avoids Docker bridge interfaces such as `docker0` and is more reliable than interface names in host-network containers.
+Leave `SAMBA_INTERFACES` empty unless you need to override it.
+Keep `SAMBA_BIND_INTERFACES_ONLY=no` for Tailscale. Samba's own documentation warns that `bind interfaces only = yes` does not cope well with PPP or other non-broadcast interfaces, and `tailscale0` is point-to-point. If you force bind-only mode, Samba may listen only on loopback or IPv6.
+
+When `SAMBA_BIND_INTERFACES_ONLY=yes`, the entrypoint defaults `SAMBA_INTERFACES` to `127.0.0.1` plus `SAMBA_HOST_IP`.
 
 Start:
 
@@ -74,7 +78,7 @@ sudo systemctl restart systemd-resolved
 sudo ss -tulpn | grep ':53'
 ```
 
-After that, Samba should be the only DNS server binding on `tailscale0`.
+After that, Samba should be the only DNS server you intend to expose for AD traffic. If you run with `SAMBA_BIND_INTERFACES_ONLY=no`, restrict exposure with host firewall rules and Tailscale ACLs instead of relying on Samba socket binding alone.
 
 Check:
 

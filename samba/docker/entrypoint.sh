@@ -18,13 +18,14 @@ SAMBA_DNS_FORWARDER="${SAMBA_DNS_FORWARDER:-1.1.1.1}"
 SAMBA_LOG_LEVEL="${SAMBA_LOG_LEVEL:-1}"
 SAMBA_HOST_IP="${SAMBA_HOST_IP:-}"
 SAMBA_INTERFACES="${SAMBA_INTERFACES:-}"
+SAMBA_BIND_INTERFACES_ONLY="${SAMBA_BIND_INTERFACES_ONLY:-no}"
 SAMBA_REALM_UPPER="$(echo "${SAMBA_REALM}" | tr '[:lower:]' '[:upper:]')"
 SAMBA_DOMAIN_UPPER="$(echo "${SAMBA_DOMAIN}" | tr '[:lower:]' '[:upper:]')"
 SAMBA_DNS_DOMAIN="$(echo "${SAMBA_REALM}" | tr '[:upper:]' '[:lower:]')"
 SAMBA_HOST_FQDN="${SAMBA_HOSTNAME}.${SAMBA_DNS_DOMAIN}"
 SAMBA_MARKER_FILE="/var/lib/samba/.forlittle-provisioned"
 
-if [[ -z "${SAMBA_INTERFACES}" ]]; then
+if [[ -z "${SAMBA_INTERFACES}" && "${SAMBA_BIND_INTERFACES_ONLY}" == "yes" ]]; then
   if [[ -n "${SAMBA_HOST_IP}" ]]; then
     SAMBA_INTERFACES="127.0.0.1 ${SAMBA_HOST_IP}"
   else
@@ -90,16 +91,20 @@ if [[ -f /etc/samba/smb.conf ]]; then
     sed -i "/^\[global\]/a \        dns forwarder = ${SAMBA_DNS_FORWARDER}" /etc/samba/smb.conf
   fi
 
-  if grep -qE '^[[:space:]]*interfaces[[:space:]]*=' /etc/samba/smb.conf; then
-    sed -i "s/^[[:space:]]*interfaces[[:space:]]*=.*/        interfaces = ${SAMBA_INTERFACES}/" /etc/samba/smb.conf
+  if [[ -n "${SAMBA_INTERFACES}" ]]; then
+    if grep -qE '^[[:space:]]*interfaces[[:space:]]*=' /etc/samba/smb.conf; then
+      sed -i "s/^[[:space:]]*interfaces[[:space:]]*=.*/        interfaces = ${SAMBA_INTERFACES}/" /etc/samba/smb.conf
+    else
+      sed -i "/^\[global\]/a \        interfaces = ${SAMBA_INTERFACES}" /etc/samba/smb.conf
+    fi
   else
-    sed -i "/^\[global\]/a \        interfaces = ${SAMBA_INTERFACES}" /etc/samba/smb.conf
+    sed -i '/^[[:space:]]*interfaces[[:space:]]*=.*/d' /etc/samba/smb.conf
   fi
 
   if grep -qE '^[[:space:]]*bind interfaces only[[:space:]]*=' /etc/samba/smb.conf; then
-    sed -i "s/^[[:space:]]*bind interfaces only[[:space:]]*=.*/        bind interfaces only = yes/" /etc/samba/smb.conf
+    sed -i "s/^[[:space:]]*bind interfaces only[[:space:]]*=.*/        bind interfaces only = ${SAMBA_BIND_INTERFACES_ONLY}/" /etc/samba/smb.conf
   else
-    sed -i "/^\[global\]/a \        bind interfaces only = yes" /etc/samba/smb.conf
+    sed -i "/^\[global\]/a \        bind interfaces only = ${SAMBA_BIND_INTERFACES_ONLY}" /etc/samba/smb.conf
   fi
 fi
 
