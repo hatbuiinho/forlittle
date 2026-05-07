@@ -3,6 +3,7 @@ services:
     build:
       context: ./server
       dockerfile: Dockerfile
+    container_name: for-little-be
     env_file:
       - ./server/.env
     ports:
