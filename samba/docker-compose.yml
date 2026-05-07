@@ -21,7 +21,7 @@ services:
     restart: unless-stopped
     volumes:
       - samba_etc:/etc/samba
-      - samba_lib:/var/lib/samba
+      - ./lib/samba:/var/lib/samba
       - samba_cache:/var/cache/samba
       - samba_log:/var/log/samba
     stop_grace_period: 30s
