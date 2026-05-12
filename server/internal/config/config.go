@@ -10,6 +10,7 @@ type Config struct {
 	AppEnv               string
 	Port                 string
 	DatabaseURL          string
+	ExtensionReleasesDir string
 	AdminEmail           string
 	AdminPassword        string
 	AdminDisplayName     string
@@ -24,6 +25,7 @@ func Load() Config {
 		AppEnv:               getEnv("APP_ENV", "development"),
 		Port:                 getEnv("PORT", "8080"),
 		DatabaseURL:          getEnv("DATABASE_URL", "postgres://postgres:postgres@localhost:5432/forlittle?sslmode=disable"),
+		ExtensionReleasesDir: getEnv("EXTENSION_RELEASES_DIR", "extension-releases"),
 		AdminEmail:           getEnv("ADMIN_EMAIL", "admin@example.com"),
 		AdminPassword:        getEnv("ADMIN_PASSWORD", "admin123"),
 		AdminDisplayName:     getEnv("ADMIN_DISPLAY_NAME", "Temple Admin"),

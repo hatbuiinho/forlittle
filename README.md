@@ -40,3 +40,39 @@ Phase 1 monorepo scaffold for:
 - `chrome.storage.managed` is optional during development.
 - The extension falls back to dev-local config until you test on a managed machine.
 - Admin auth is intentionally simple in phase 1 and should be tightened in the next pass.
+
+## Managed Extension Releases
+
+The backend can serve a self-hosted Chrome extension update channel for managed installs:
+
+- `GET /extensions/:slug/update.xml`
+- `GET /extensions/:slug/:filename`
+
+Recommended flow:
+
+1. Keep a stable private key file outside the repo.
+2. Package the extension with that key.
+3. Generate `update.xml`.
+4. Store the release files under `server/extension-releases/<slug>/`.
+5. Force-install through Chrome policy with a stable `update_url`.
+
+Example release command:
+
+```bash
+UPDATE_BASE_URL="https://little-be.hatbuinho.me/extensions/forlittle" \
+PEM_PATH="/secure/path/forlittle-extension.pem" \
+EXTENSION_ID="your_extension_id_here" \
+./scripts/package-extension.sh
+```
+
+Chrome policy should keep the `update_url` stable:
+
+```json
+{
+  "your_extension_id_here": {
+    "installation_mode": "force_installed",
+    "update_url": "https://little-be.hatbuinho.me/extensions/forlittle/update.xml",
+    "override_update_url": true
+  }
+}
+```

@@ -15,6 +15,10 @@ func New(cfg config.Config, database *gorm.DB) *gin.Engine {
 
 	engine.GET("/healthz", handlers.Health)
 
+	extensionReleaseHandler := handlers.ExtensionReleaseHandler{ReleasesDir: cfg.ExtensionReleasesDir}
+	engine.GET("/extensions/:slug/update.xml", extensionReleaseHandler.ServeUpdateManifest)
+	engine.GET("/extensions/:slug/:filename", extensionReleaseHandler.ServeAsset)
+
 	agentHandler := handlers.AgentHandler{DB: database}
 	adminHandler := handlers.AdminHandler{DB: database, Cfg: cfg}
 
