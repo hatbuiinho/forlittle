@@ -54,6 +54,7 @@ Recommended flow:
 2. Package the extension with that key.
 3. Generate `update.xml`.
 4. Store the release files under `server/extension-releases/<slug>/`.
+   - The root `docker-compose.yml` mounts this folder into the backend container, so file changes are visible after a container restart without rebuilding the image.
 5. Force-install through Chrome policy with a stable `update_url`.
 
 Example release command:
