@@ -35,10 +35,14 @@ type timePolicyInput struct {
 }
 
 type deviceEnrollmentRequest struct {
-	MachineID     string `json:"machine_id" binding:"required"`
-	DisplayName   string `json:"display_name"`
-	EnrollmentKey string `json:"enrollment_key" binding:"required"`
+	MachineID             string `json:"machine_id" binding:"required"`
+	DisplayName           string `json:"display_name"`
+	LittleMonkCode        string `json:"little_monk_code" binding:"required"`
+	LittleMonkDisplayName string `json:"little_monk_display_name"`
+	EnrollmentKey         string `json:"enrollment_key" binding:"required"`
 }
+
+var errMachineAssignedToAnotherLittleMonk = errors.New("machine is already assigned to another little monk")
 
 type deviceHeartbeatRequest struct {
 	EffectiveState string     `json:"effective_state" binding:"required"`
@@ -88,26 +92,19 @@ func (h TimeControlHandler) Enroll(c *gin.Context) {
 		badRequest(c, errors.New("machine_id is required"))
 		return
 	}
+	littleMonkCode := strings.TrimSpace(input.LittleMonkCode)
+	if littleMonkCode == "" {
+		badRequest(c, errors.New("little_monk_code is required"))
+		return
+	}
 	now := time.Now().UTC()
 	displayName := strings.TrimSpace(input.DisplayName)
 	if displayName == "" {
 		displayName = machineID
 	}
-
-	var machine models.Machine
-	err := h.DB.Where("machine_id = ?", machineID).First(&machine).Error
-	if err == gorm.ErrRecordNotFound {
-		machine = models.Machine{MachineID: machineID, DisplayName: displayName, Status: "pending", DeviceTokenHash: "managed-by-device-client", LastSeenAt: &now}
-		if err := h.DB.Create(&machine).Error; err != nil {
-			internalServerError(c, "could not create machine")
-			return
-		}
-	} else if err != nil {
-		internalServerError(c, "could not load machine")
-		return
-	} else if err := h.DB.Model(&machine).Updates(map[string]any{"display_name": displayName, "last_seen_at": now}).Error; err != nil {
-		internalServerError(c, "could not update machine")
-		return
+	littleMonkDisplayName := strings.TrimSpace(input.LittleMonkDisplayName)
+	if littleMonkDisplayName == "" {
+		littleMonkDisplayName = displayName
 	}
 
 	token, err := services.NewOpaqueToken()
@@ -115,13 +112,66 @@ func (h TimeControlHandler) Enroll(c *gin.Context) {
 		internalServerError(c, "could not create device token")
 		return
 	}
-	client := models.DeviceClient{MachineID: machineID, ClientType: "windows_service", TokenHash: services.HashToken(token), LastSeenAt: &now}
-	if err := h.DB.Where(models.DeviceClient{MachineID: machineID, ClientType: "windows_service"}).Assign(client).FirstOrCreate(&client).Error; err != nil {
+
+	var machine models.Machine
+	var littleMonk models.LittleMonk
+	err = h.DB.Transaction(func(tx *gorm.DB) error {
+		err := tx.Where("code = ?", littleMonkCode).First(&littleMonk).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			littleMonk = models.LittleMonk{Code: littleMonkCode, DisplayName: littleMonkDisplayName, Status: "active"}
+			if err := tx.Create(&littleMonk).Error; err != nil {
+				return err
+			}
+		} else if err != nil {
+			return err
+		}
+
+		err = tx.Where("machine_id = ?", machineID).First(&machine).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			machine = models.Machine{
+				MachineID:       machineID,
+				DisplayName:     displayName,
+				Status:          "active",
+				LittleMonkID:    &littleMonk.ID,
+				DeviceTokenHash: "managed-by-device-client",
+				LastSeenAt:      &now,
+			}
+			if err := tx.Create(&machine).Error; err != nil {
+				return err
+			}
+		} else if err != nil {
+			return err
+		} else {
+			if machine.LittleMonkID != nil && *machine.LittleMonkID != littleMonk.ID {
+				return errMachineAssignedToAnotherLittleMonk
+			}
+			if err := tx.Model(&machine).Updates(map[string]any{
+				"display_name":   displayName,
+				"little_monk_id": littleMonk.ID,
+				"status":         "active",
+				"last_seen_at":   now,
+			}).Error; err != nil {
+				return err
+			}
+			machine.DisplayName = displayName
+			machine.LittleMonkID = &littleMonk.ID
+			machine.Status = "active"
+			machine.LastSeenAt = &now
+		}
+
+		client := models.DeviceClient{MachineID: machineID, ClientType: "windows_service", TokenHash: services.HashToken(token), LastSeenAt: &now}
+		return tx.Where(models.DeviceClient{MachineID: machineID, ClientType: "windows_service"}).Assign(client).FirstOrCreate(&client).Error
+	})
+	if errors.Is(err, errMachineAssignedToAnotherLittleMonk) {
+		c.JSON(http.StatusConflict, gin.H{"error": "machine is already assigned to another little monk"})
+		return
+	}
+	if err != nil {
 		internalServerError(c, "could not enroll service")
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"device_token": token, "machine_status": machine.Status, "server_time": now})
+	c.JSON(http.StatusOK, gin.H{"device_token": token, "machine_status": machine.Status, "little_monk": littleMonk, "server_time": now})
 }
 
 func (h TimeControlHandler) GetPolicy(c *gin.Context) {

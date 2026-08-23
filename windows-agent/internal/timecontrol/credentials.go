@@ -8,7 +8,8 @@ import (
 )
 
 type credentials struct {
-	DeviceToken string `json:"device_token"`
+	DeviceToken       string `json:"device_token"`
+	EnrollmentVersion int    `json:"enrollment_version"`
 }
 
 func loadCredentials(dataDir string) (credentials, error) {

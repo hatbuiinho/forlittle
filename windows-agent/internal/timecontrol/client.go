@@ -37,7 +37,13 @@ func (c *Client) Enroll(ctx context.Context) (string, error) {
 	var response struct {
 		DeviceToken string `json:"device_token"`
 	}
-	err := c.request(ctx, http.MethodPost, "/api/v1/devices/enroll", map[string]string{"machine_id": c.cfg.MachineID, "display_name": c.cfg.DisplayName, "enrollment_key": c.cfg.EnrollmentKey}, false, &response)
+	err := c.request(ctx, http.MethodPost, "/api/v1/devices/enroll", map[string]string{
+		"machine_id":               c.cfg.MachineID,
+		"display_name":             c.cfg.DisplayName,
+		"little_monk_code":         c.cfg.LittleMonkCode,
+		"little_monk_display_name": c.cfg.LittleMonkDisplayName,
+		"enrollment_key":           c.cfg.EnrollmentKey,
+	}, false, &response)
 	if err != nil {
 		return "", err
 	}

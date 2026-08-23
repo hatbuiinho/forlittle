@@ -12,6 +12,10 @@ import (
 
 type Publisher interface{ Publish(StateMessage) }
 
+// enrollmentVersion forces one safe re-enrollment when the device identity
+// format changes. Version zero represents credentials created by older agents.
+const enrollmentVersion = 2
+
 type Service struct {
 	cfg                   config.TimeControlConfig
 	store                 *Store
@@ -38,7 +42,11 @@ func (s *Service) Run(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	s.client = NewClient(s.cfg, credentials.DeviceToken)
+	deviceToken := credentials.DeviceToken
+	if credentials.EnrollmentVersion < enrollmentVersion {
+		deviceToken = ""
+	}
+	s.client = NewClient(s.cfg, deviceToken)
 	if !s.ensureEnrollment(ctx) {
 		s.logger.Printf("initial enrollment unavailable; enforcing cached state")
 	}
@@ -102,7 +110,9 @@ func (s *Service) ensureAgent(ctx context.Context) {
 	s.logger.Printf("started UI agent %q", s.cfg.AgentPath)
 }
 
-func credentialsFromToken(token string) credentials { return credentials{DeviceToken: token} }
+func credentialsFromToken(token string) credentials {
+	return credentials{DeviceToken: token, EnrollmentVersion: enrollmentVersion}
+}
 
 func (s *Service) syncPolicy(ctx context.Context) {
 	if !s.ensureEnrollment(ctx) {

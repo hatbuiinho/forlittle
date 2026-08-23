@@ -23,6 +23,22 @@ type Config struct {
 	ChromeArgs           []string `json:"chrome_args"`
 }
 
+// TimeControlConfig is intentionally separate from the legacy Chrome runner
+// configuration. The production service never launches Chrome itself.
+type TimeControlConfig struct {
+	ServerURL             string `json:"server_url"`
+	MachineID             string `json:"machine_id"`
+	DisplayName           string `json:"display_name"`
+	LittleMonkCode        string `json:"little_monk_code"`
+	LittleMonkDisplayName string `json:"little_monk_display_name"`
+	EnrollmentKey         string `json:"enrollment_key"`
+	DataDir               string `json:"data_dir"`
+	PolicyPollSeconds     int    `json:"policy_poll_seconds"`
+	CommandPollSeconds    int    `json:"command_poll_seconds"`
+	HeartbeatSeconds      int    `json:"heartbeat_seconds"`
+	AgentPath             string `json:"agent_path"`
+}
+
 func Load(path string) (Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -83,4 +99,43 @@ func (c Config) RelaunchDelay() time.Duration {
 
 func (c Config) ScanInterval() time.Duration {
 	return time.Duration(c.ScanIntervalSeconds) * time.Second
+}
+
+func LoadTimeControl(path string) (TimeControlConfig, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return TimeControlConfig{}, err
+	}
+	var cfg TimeControlConfig
+	if err := json.Unmarshal(data, &cfg); err != nil {
+		return TimeControlConfig{}, err
+	}
+	if cfg.DataDir == "" {
+		cfg.DataDir = `C:\ProgramData\ForLittle\TimeControl`
+	}
+	if cfg.PolicyPollSeconds <= 0 {
+		cfg.PolicyPollSeconds = 60
+	}
+	if cfg.CommandPollSeconds <= 0 {
+		cfg.CommandPollSeconds = 10
+	}
+	if cfg.HeartbeatSeconds <= 0 {
+		cfg.HeartbeatSeconds = 30
+	}
+	if cfg.AgentPath == "" {
+		cfg.AgentPath = `C:\Program Files\ForLittle\TimeControl\ForLittle.TimeControl.Agent.exe`
+	}
+	if cfg.LittleMonkCode == "" {
+		cfg.LittleMonkCode = cfg.MachineID
+	}
+	if cfg.LittleMonkDisplayName == "" {
+		cfg.LittleMonkDisplayName = cfg.DisplayName
+		if cfg.LittleMonkDisplayName == "" {
+			cfg.LittleMonkDisplayName = cfg.MachineID
+		}
+	}
+	if cfg.ServerURL == "" || cfg.MachineID == "" {
+		return TimeControlConfig{}, errors.New("server_url and machine_id are required")
+	}
+	return cfg, nil
 }

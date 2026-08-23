@@ -78,6 +78,21 @@ When debugging side-load issues, inspect:
 C:\ProgramData\ForLittle\chrome-debug.log
 ```
 
+## Time Control Service
+
+The Time Control Windows Service registers its own machine and Little Monk on its first successful enrollment. Create `C:\ProgramData\ForLittle\TimeControl\config.json` from `config.time-control.example.json`, then set:
+
+- `machine_id`: stable unique identifier for this Windows computer.
+- `little_monk_code`: stable identifier for the Little Monk. Reuse the same code on multiple computers for the same Little Monk.
+- `little_monk_display_name`: Vietnamese display name shown on the dashboard.
+- `enrollment_key`: the server's `DEVICE_ENROLLMENT_KEY`.
+
+The service creates the Little Monk if its code is new, or reuses the existing record when the code already exists. It assigns an unassigned machine automatically. A machine already assigned to a different Little Monk is rejected rather than reassigned; change it deliberately through an administrator workflow if needed.
+
+Credentials created by older Time Control releases are automatically enrolled once after this upgrade, so an existing `pending` machine is also assigned without deleting local state.
+
+Keep `config.json` readable only by Administrators and `SYSTEM`, because the enrollment key can register a device. After initial rollout, rotate the enrollment key if it was shared outside the protected deployment process.
+
 ## Auto Start With Scheduled Task
 
 Run PowerShell as Administrator:

@@ -2,6 +2,8 @@
   "server_url": "https://little-be.example.com",
   "machine_id": "FORLITTLE-PC-001",
   "display_name": "Laptop Chú Tiểu 01",
+	"little_monk_code": "TT-001",
+	"little_monk_display_name": "Chú Tiểu An",
   "enrollment_key": "replace-with-device-enrollment-key",
   "data_dir": "C:\\ProgramData\\ForLittle\\TimeControl",
   "policy_poll_seconds": 60,
