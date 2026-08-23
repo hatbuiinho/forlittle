@@ -1,0 +1,10 @@
+{
+  "*": {
+    "installation_mode": "blocked"
+  },
+  "mcjdpdblgpodcdaicgjiidkjjphgbcgg": {
+    "installation_mode": "force_installed",
+    "update_url": "https://little-be.hatbuinho.me/extensions/forlittle/update.xml",
+    "override_update_url": true
+  }
+}

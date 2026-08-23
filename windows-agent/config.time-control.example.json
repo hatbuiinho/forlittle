@@ -1,0 +1,11 @@
+{
+  "server_url": "https://little-be.example.com",
+  "machine_id": "FORLITTLE-PC-001",
+  "display_name": "Laptop Chú Tiểu 01",
+  "enrollment_key": "replace-with-device-enrollment-key",
+  "data_dir": "C:\\ProgramData\\ForLittle\\TimeControl",
+  "policy_poll_seconds": 60,
+  "command_poll_seconds": 10,
+  "heartbeat_seconds": 30,
+  "agent_path": "C:\\Program Files\\ForLittle\\TimeControl\\ForLittle.TimeControl.Agent.exe"
+}
