@@ -158,7 +158,7 @@ func (h TimeControlHandler) Heartbeat(c *gin.Context) {
 	}
 	machineID := c.GetString("machine_id")
 	now := time.Now().UTC()
-	state := models.MachineTimeState{MachineID: machineID, EffectiveState: input.EffectiveState, StateReason: strings.TrimSpace(input.StateReason), NextAllowedAt: input.NextAllowedAt, ExtendedUntil: input.ExtendedUntil, LastReportedAt: &now}
+	state := models.MachineTimeState{MachineID: machineID, EffectiveState: input.EffectiveState, StateReason: strings.TrimSpace(input.StateReason), NextAllowedAt: input.NextAllowedAt, ExtendedUntil: input.ExtendedUntil, AgentHealthy: input.AgentHealthy, LastReportedAt: &now}
 	if state.StateReason == "" {
 		state.StateReason = "reported"
 	}

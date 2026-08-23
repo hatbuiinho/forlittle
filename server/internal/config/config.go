@@ -18,6 +18,7 @@ type Config struct {
 	AdminCookieSecure    bool
 	AdminCookieSameSite  string
 	CORSAllowedOrigins   []string
+	DeviceEnrollmentKey  string
 }
 
 func Load() Config {
@@ -33,6 +34,7 @@ func Load() Config {
 		AdminCookieSecure:    getEnvBool("ADMIN_COOKIE_SECURE", false),
 		AdminCookieSameSite:  strings.ToLower(getEnv("ADMIN_COOKIE_SAME_SITE", "lax")),
 		CORSAllowedOrigins:   getEnvList("CORS_ALLOWED_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173"),
+		DeviceEnrollmentKey:  getEnv("DEVICE_ENROLLMENT_KEY", ""),
 	}
 }
 

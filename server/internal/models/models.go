@@ -84,3 +84,72 @@ type VisitLog struct {
 	VisitedAt         time.Time `gorm:"index;not null" json:"visited_at"`
 	Action            string    `gorm:"size:50;not null" json:"action"`
 }
+
+// DeviceClient stores a revocable credential for a non-browser device client.
+// Its token is stored only as a hash.
+type DeviceClient struct {
+	ID         uint       `gorm:"primaryKey" json:"id"`
+	MachineID  string     `gorm:"uniqueIndex:idx_device_client;size:120;not null" json:"machine_id"`
+	ClientType string     `gorm:"uniqueIndex:idx_device_client;size:50;not null" json:"client_type"`
+	TokenHash  string     `gorm:"uniqueIndex;size:255;not null" json:"-"`
+	LastSeenAt *time.Time `json:"last_seen_at"`
+	RevokedAt  *time.Time `json:"revoked_at"`
+	CreatedAt  time.Time  `json:"created_at"`
+	UpdatedAt  time.Time  `json:"updated_at"`
+}
+
+type TimePolicy struct {
+	ID           uint      `gorm:"primaryKey" json:"id"`
+	LittleMonkID *uint     `gorm:"uniqueIndex" json:"little_monk_id"`
+	Timezone     string    `gorm:"size:100;not null" json:"timezone"`
+	Version      int       `gorm:"not null;default:1" json:"version"`
+	Enabled      bool      `gorm:"not null;default:false" json:"enabled"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
+}
+
+type TimeScheduleWindow struct {
+	ID           uint `gorm:"primaryKey" json:"id"`
+	TimePolicyID uint `gorm:"index;not null" json:"time_policy_id"`
+	DayOfWeek    int  `gorm:"not null" json:"day_of_week"`
+	StartMinutes int  `gorm:"not null" json:"start_minutes"`
+	EndMinutes   int  `gorm:"not null" json:"end_minutes"`
+}
+
+type MachineTimeState struct {
+	ID             uint       `gorm:"primaryKey" json:"id"`
+	MachineID      string     `gorm:"uniqueIndex;size:120;not null" json:"machine_id"`
+	EffectiveState string     `gorm:"size:20;not null" json:"effective_state"`
+	StateReason    string     `gorm:"size:100;not null" json:"state_reason"`
+	NextAllowedAt  *time.Time `json:"next_allowed_at"`
+	ExtendedUntil  *time.Time `json:"extended_until"`
+	AgentHealthy   bool       `gorm:"not null;default:false" json:"agent_healthy"`
+	LastReportedAt *time.Time `json:"last_reported_at"`
+	UpdatedAt      time.Time  `json:"updated_at"`
+}
+
+type DeviceCommand struct {
+	ID          uint       `gorm:"primaryKey" json:"id"`
+	CommandID   string     `gorm:"uniqueIndex;size:80;not null" json:"command_id"`
+	MachineID   string     `gorm:"index;size:120;not null" json:"machine_id"`
+	Type        string     `gorm:"size:50;not null" json:"type"`
+	PayloadJSON string     `gorm:"type:text;not null" json:"payload"`
+	Status      string     `gorm:"index;size:30;not null" json:"status"`
+	Error       string     `gorm:"type:text" json:"error"`
+	ExpiresAt   *time.Time `gorm:"index" json:"expires_at"`
+	AppliedAt   *time.Time `json:"applied_at"`
+	CreatedAt   time.Time  `json:"created_at"`
+	UpdatedAt   time.Time  `json:"updated_at"`
+}
+
+type AppUsage struct {
+	ID            uint      `gorm:"primaryKey" json:"id"`
+	MachineID     string    `gorm:"uniqueIndex:idx_app_usage;size:120;not null" json:"machine_id"`
+	WindowsUser   string    `gorm:"uniqueIndex:idx_app_usage;size:255;not null" json:"windows_user"`
+	Application   string    `gorm:"uniqueIndex:idx_app_usage;size:255;not null" json:"application"`
+	UsageDate     time.Time `gorm:"uniqueIndex:idx_app_usage;not null" json:"usage_date"`
+	ActiveSeconds int64     `gorm:"not null;default:0" json:"active_seconds"`
+	IdleSeconds   int64     `gorm:"not null;default:0" json:"idle_seconds"`
+	CreatedAt     time.Time `json:"created_at"`
+	UpdatedAt     time.Time `json:"updated_at"`
+}

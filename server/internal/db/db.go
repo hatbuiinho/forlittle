@@ -24,6 +24,12 @@ func AutoMigrate(database *gorm.DB) error {
 		&models.PolicyRule{},
 		&models.PolicyConfig{},
 		&models.VisitLog{},
+		&models.DeviceClient{},
+		&models.TimePolicy{},
+		&models.TimeScheduleWindow{},
+		&models.MachineTimeState{},
+		&models.DeviceCommand{},
+		&models.AppUsage{},
 	); err != nil {
 		return err
 	}
