@@ -93,6 +93,18 @@ Credentials created by older Time Control releases are automatically enrolled on
 
 Keep `config.json` readable only by Administrators and `SYSTEM`, because the enrollment key can register a device. After initial rollout, rotate the enrollment key if it was shared outside the protected deployment process.
 
+### Build And Deploy Release
+
+On the release machine, run:
+
+```bash
+./scripts/build-time-control-release.sh
+```
+
+The command creates a timestamped folder under `dist/` containing both executables, the installer, deployment script, and config template. Copy that entire folder to the Windows computer, create `config.json` from `config.time-control.example.json`, then run `deploy-time-control.ps1`. The script requests Administrator elevation, installs or updates the service, and starts it.
+
+Use `deploy-time-control.ps1 -ForceReenroll` only when you intentionally need to discard the local device credential and enroll the computer again.
+
 ## Auto Start With Scheduled Task
 
 Run PowerShell as Administrator:
