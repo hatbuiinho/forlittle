@@ -4,6 +4,7 @@ import (
 	"forlittle/server/internal/config"
 	"forlittle/server/internal/http/handlers"
 	"forlittle/server/internal/http/middleware"
+	"forlittle/server/internal/timecontrol"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -21,6 +22,8 @@ func New(cfg config.Config, database *gorm.DB) *gin.Engine {
 
 	agentHandler := handlers.AgentHandler{DB: database}
 	adminHandler := handlers.AdminHandler{DB: database, Cfg: cfg}
+	commandBroker := timecontrol.NewCommandBroker()
+	timeControlHandler := handlers.TimeControlHandler{DB: database, Cfg: cfg, Broker: commandBroker}
 
 	api := engine.Group("/api/v1")
 	{
@@ -33,6 +36,20 @@ func New(cfg config.Config, database *gorm.DB) *gin.Engine {
 			secured.POST("/heartbeat", agentHandler.Heartbeat)
 			secured.GET("/policy", agentHandler.Policy)
 			secured.POST("/logs/batch", agentHandler.LogsBatch)
+		}
+
+		devices := api.Group("/devices")
+		{
+			devices.POST("/enroll", timeControlHandler.Enroll)
+
+			secured := devices.Group("")
+			secured.Use(middleware.DeviceAuth(database))
+			secured.GET("/time-policy", timeControlHandler.GetPolicy)
+			secured.GET("/commands", timeControlHandler.GetCommands)
+			secured.GET("/ws", timeControlHandler.WebSocket)
+			secured.POST("/heartbeat", timeControlHandler.Heartbeat)
+			secured.POST("/usage", timeControlHandler.Usage)
+			secured.POST("/commands/:commandId/ack", timeControlHandler.AckCommand)
 		}
 
 		admin := api.Group("/admin")
@@ -55,6 +72,11 @@ func New(cfg config.Config, database *gorm.DB) *gin.Engine {
 			secured.DELETE("/rules/:ruleId", adminHandler.DeleteRule)
 			secured.GET("/logs", adminHandler.ListLogs)
 			secured.GET("/log-groups", adminHandler.ListLogGroups)
+			secured.GET("/time-control/little-monks/:littleMonkId/policy", timeControlHandler.GetPolicyAdmin)
+			secured.PUT("/time-control/little-monks/:littleMonkId/policy", timeControlHandler.PutPolicyAdmin)
+			secured.POST("/time-control/machines/:machineId/commands", timeControlHandler.CreateCommandAdmin)
+			secured.GET("/time-control/machines/:machineId/state", timeControlHandler.GetMachineStateAdmin)
+			secured.GET("/time-control/machines/:machineId/usage", timeControlHandler.ListUsageAdmin)
 		}
 	}
 
