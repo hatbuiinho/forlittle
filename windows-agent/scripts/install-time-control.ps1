@@ -16,6 +16,15 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+function Invoke-Sc {
+    param([Parameter(ValueFromRemainingArguments = $true)][string[]]$Arguments)
+
+    & "$env:SystemRoot\System32\sc.exe" @Arguments
+    if ($LASTEXITCODE -ne 0) {
+        throw "sc.exe $($Arguments -join ' ') failed with exit code $LASTEXITCODE"
+    }
+}
+
 foreach ($path in @($ServiceExecutable, $AgentExecutable, $ConfigPath)) {
     if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
         throw "Required file was not found: $path"
@@ -47,15 +56,21 @@ $serviceConfig | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $installedCo
 & icacls.exe $DataDirectory /inheritance:r | Out-Null
 & icacls.exe $DataDirectory /grant:r "SYSTEM:(OI)(CI)F" "Administrators:(OI)(CI)F" | Out-Null
 
+$serviceCommandLine = "`"$installedService`" -config `"$installedConfig`""
 if (-not (Get-Service -Name $ServiceName -ErrorAction SilentlyContinue)) {
-    & sc.exe create $ServiceName binPath= "`"$installedService`" -config `"$installedConfig`"" start= delayed-auto DisplayName= "For Little Time Control" | Out-Null
+    New-Service `
+        -Name $ServiceName `
+        -BinaryPathName $serviceCommandLine `
+        -DisplayName "For Little Time Control" `
+        -StartupType Automatic | Out-Null
 }
 else {
-    & sc.exe config $ServiceName binPath= "`"$installedService`" -config `"$installedConfig`"" start= delayed-auto | Out-Null
+    Invoke-Sc config $ServiceName binPath= $serviceCommandLine
 }
 
-& sc.exe failure $ServiceName reset= 86400 actions= restart/5000/restart/5000/restart/5000 | Out-Null
-& sc.exe failureflag $ServiceName 1 | Out-Null
+Invoke-Sc config $ServiceName start= delayed-auto
+Invoke-Sc failure $ServiceName reset= 86400 actions= restart/5000/restart/5000/restart/5000
+Invoke-Sc failureflag $ServiceName 1
 Start-Service -Name $ServiceName
 
 Write-Host "Installed $ServiceName. Verify with: Get-Service $ServiceName"

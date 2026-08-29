@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [string]$ReleaseDirectory = $PSScriptRoot,
+    [string]$ReleaseDirectory,
     [switch]$ForceReenroll
 )
 
@@ -10,6 +10,12 @@ function Test-Administrator {
     $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
     $principal = [Security.Principal.WindowsPrincipal]::new($identity)
     return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+}
+
+# Parameter defaults are evaluated before $PSScriptRoot is populated on some
+# Windows PowerShell hosts. Resolve the release directory only after loading.
+if ([string]::IsNullOrWhiteSpace($ReleaseDirectory)) {
+    $ReleaseDirectory = $PSScriptRoot
 }
 
 if (-not (Test-Administrator)) {
