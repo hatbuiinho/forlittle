@@ -2,7 +2,7 @@ using System.Windows;
 
 namespace ForLittle.TimeControl.Agent;
 
-public partial class App : Application
+public partial class App : System.Windows.Application
 {
     private readonly CancellationTokenSource cancellation = new();
     private readonly OverlayController overlays = new();
