@@ -2,7 +2,31 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-DEFAULT_OUTPUT="$ROOT_DIR/dist/time-control-$(date +%Y%m%d-%H%M%S)"
+HOST_ARCH="$(uname -m)"
+case "$HOST_ARCH" in
+  arm64|aarch64)
+    DEFAULT_WINDOWS_ARCH="arm64"
+    ;;
+  x86_64|amd64)
+    DEFAULT_WINDOWS_ARCH="amd64"
+    ;;
+  *)
+    echo "Unsupported build host architecture: $HOST_ARCH" >&2
+    exit 1
+    ;;
+esac
+
+WINDOWS_ARCH="${FORLITTLE_WINDOWS_ARCH:-$DEFAULT_WINDOWS_ARCH}"
+case "$WINDOWS_ARCH" in
+  amd64|arm64)
+    ;;
+  *)
+    echo "FORLITTLE_WINDOWS_ARCH must be amd64 or arm64." >&2
+    exit 1
+    ;;
+esac
+
+DEFAULT_OUTPUT="$ROOT_DIR/dist/time-control-$WINDOWS_ARCH-$(date +%Y%m%d-%H%M%S)"
 OUTPUT_DIR="${1:-$DEFAULT_OUTPUT}"
 
 if [[ -e "$OUTPUT_DIR" ]]; then
@@ -15,10 +39,10 @@ command -v dotnet >/dev/null || { echo ".NET SDK 8 is required." >&2; exit 1; }
 
 mkdir -p "$OUTPUT_DIR"
 cd "$ROOT_DIR"
-GOOS=windows GOARCH=amd64 go build -o "$OUTPUT_DIR/forlittle-time-control.exe" "$ROOT_DIR/cmd/forlittle-time-control"
+GOOS=windows GOARCH="$WINDOWS_ARCH" go build -o "$OUTPUT_DIR/forlittle-time-control.exe" "$ROOT_DIR/cmd/forlittle-time-control"
 dotnet publish "$ROOT_DIR/ui-agent/ForLittle.TimeControl.Agent.csproj" \
   --configuration Release \
-  --runtime win-x64 \
+  --runtime "win-$WINDOWS_ARCH" \
   --self-contained true \
   --output "$OUTPUT_DIR/agent"
 
@@ -29,6 +53,7 @@ cp "$ROOT_DIR/scripts/deploy-time-control.ps1" "$OUTPUT_DIR/deploy-time-control.
 
 cat <<EOF
 Release created: $OUTPUT_DIR
+Architecture: win-$WINDOWS_ARCH
 
 Copy this directory to the target Windows computer, create config.json from
 config.time-control.example.json, then run deploy-time-control.ps1.
