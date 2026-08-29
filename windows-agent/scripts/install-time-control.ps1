@@ -49,7 +49,8 @@ Copy-Item -LiteralPath $ConfigPath -Destination $installedConfig -Force
 $serviceConfig = Get-Content -LiteralPath $installedConfig -Raw | ConvertFrom-Json
 $serviceConfig.agent_path = $installedAgent
 $serviceConfig.data_dir = $DataDirectory
-$serviceConfig | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $installedConfig -Encoding utf8
+$configJSON = $serviceConfig | ConvertTo-Json -Depth 8
+[System.IO.File]::WriteAllText($installedConfig, $configJSON, [System.Text.UTF8Encoding]::new($false))
 
 # Program Files is protected by Windows. Restrict mutable service state so a
 # Standard User cannot replace credentials, policy cache, or command history.

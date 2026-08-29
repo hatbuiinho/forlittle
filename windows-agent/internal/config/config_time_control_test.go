@@ -23,3 +23,15 @@ func TestLoadTimeControlDefaultsLittleMonkToMachine(t *testing.T) {
 		t.Fatalf("LittleMonkDisplayName = %q, want %q", cfg.LittleMonkDisplayName, "Laptop 01")
 	}
 }
+
+func TestLoadTimeControlAcceptsUTF8BOM(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.json")
+	data := append([]byte{0xef, 0xbb, 0xbf}, []byte(`{"server_url":"https://example.test","machine_id":"PC-001"}`)...)
+	if err := os.WriteFile(path, data, 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	if _, err := LoadTimeControl(path); err != nil {
+		t.Fatalf("LoadTimeControl returned an error for UTF-8 BOM: %v", err)
+	}
+}

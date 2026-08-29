@@ -1,6 +1,7 @@
 package config
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -46,7 +47,7 @@ func Load(path string) (Config, error) {
 	}
 
 	var cfg Config
-	if err := json.Unmarshal(data, &cfg); err != nil {
+	if err := json.Unmarshal(trimUTF8BOM(data), &cfg); err != nil {
 		return Config{}, err
 	}
 
@@ -107,7 +108,7 @@ func LoadTimeControl(path string) (TimeControlConfig, error) {
 		return TimeControlConfig{}, err
 	}
 	var cfg TimeControlConfig
-	if err := json.Unmarshal(data, &cfg); err != nil {
+	if err := json.Unmarshal(trimUTF8BOM(data), &cfg); err != nil {
 		return TimeControlConfig{}, err
 	}
 	if cfg.DataDir == "" {
@@ -138,4 +139,8 @@ func LoadTimeControl(path string) (TimeControlConfig, error) {
 		return TimeControlConfig{}, errors.New("server_url and machine_id are required")
 	}
 	return cfg, nil
+}
+
+func trimUTF8BOM(data []byte) []byte {
+	return bytes.TrimPrefix(data, []byte{0xef, 0xbb, 0xbf})
 }
