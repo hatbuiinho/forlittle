@@ -101,7 +101,7 @@ On the release machine, run:
 ./scripts/build-time-control-release.sh
 ```
 
-The command creates a timestamped folder under `dist/` containing both executables, the installer, deployment script, and config template. Copy that entire folder to the Windows computer, create `config.json` from `config.time-control.example.json`, then run `deploy-time-control.ps1`. The script requests Administrator elevation, installs or updates the service, and starts it.
+The command creates a timestamped folder under `dist/` containing both executables, the installer, deployment script, and config template. Copy that entire folder to the Windows computer, then run `deploy-time-control.ps1`. On its first run, the script creates `config.json` from the template and opens it in Notepad; fill in the values, save, and run the script again. It requests Administrator elevation, installs or updates the service, and starts it. Deployment failures stay visible and are written to `deploy-error.log` in the release directory.
 
 Use `deploy-time-control.ps1 -ForceReenroll` only when you intentionally need to discard the local device credential and enroll the computer again.
 

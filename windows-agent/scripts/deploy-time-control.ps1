@@ -26,45 +26,68 @@ if (-not (Test-Administrator)) {
     exit $process.ExitCode
 }
 
-$ReleaseDirectory = (Resolve-Path -LiteralPath $ReleaseDirectory).Path
-$serviceExecutable = Join-Path $ReleaseDirectory "forlittle-time-control.exe"
-$agentExecutable = Join-Path $ReleaseDirectory "ForLittle.TimeControl.Agent.exe"
-$configPath = Join-Path $ReleaseDirectory "config.json"
-$installer = Join-Path $ReleaseDirectory "install-time-control.ps1"
-$serviceName = "ForLittleTimeControl"
-$dataDirectory = "C:\ProgramData\ForLittle\TimeControl"
+$errorLog = Join-Path $PSScriptRoot "deploy-error.log"
 
-foreach ($path in @($serviceExecutable, $agentExecutable, $configPath, $installer)) {
-    if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
-        throw "Missing required release file: $path"
+try {
+    $ReleaseDirectory = (Resolve-Path -LiteralPath $ReleaseDirectory).Path
+    $errorLog = Join-Path $ReleaseDirectory "deploy-error.log"
+    $serviceExecutable = Join-Path $ReleaseDirectory "forlittle-time-control.exe"
+    $agentExecutable = Join-Path $ReleaseDirectory "ForLittle.TimeControl.Agent.exe"
+    $configPath = Join-Path $ReleaseDirectory "config.json"
+    $configTemplate = Join-Path $ReleaseDirectory "config.time-control.example.json"
+    $installer = Join-Path $ReleaseDirectory "install-time-control.ps1"
+    $serviceName = "ForLittleTimeControl"
+    $dataDirectory = "C:\ProgramData\ForLittle\TimeControl"
+
+    foreach ($path in @($serviceExecutable, $agentExecutable, $installer)) {
+        if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
+            throw "Missing required release file: $path"
+        }
     }
-}
 
-$config = Get-Content -LiteralPath $configPath -Raw | ConvertFrom-Json
-foreach ($name in @("server_url", "machine_id", "little_monk_code", "enrollment_key")) {
-    if ([string]::IsNullOrWhiteSpace([string]$config.$name)) {
-        throw "config.json is missing $name"
+    if (-not (Test-Path -LiteralPath $configPath -PathType Leaf)) {
+        if (-not (Test-Path -LiteralPath $configTemplate -PathType Leaf)) {
+            throw "Missing config.json and config.time-control.example.json in $ReleaseDirectory"
+        }
+        Copy-Item -LiteralPath $configTemplate -Destination $configPath
+        Start-Process -FilePath "notepad.exe" -ArgumentList "`"$configPath`""
+        throw "Created $configPath. Fill in server_url, machine_id, little_monk_code, little_monk_display_name, and enrollment_key, save it, then run this script again."
     }
-}
-if ($config.server_url -notmatch "^https?://") {
-    throw "server_url must start with http:// or https://"
-}
 
-if ($ForceReenroll) {
-    Stop-Service -Name $serviceName -Force -ErrorAction SilentlyContinue
-    Remove-Item -LiteralPath (Join-Path $dataDirectory "credentials.json") -Force -ErrorAction SilentlyContinue
+    $config = Get-Content -LiteralPath $configPath -Raw | ConvertFrom-Json
+    foreach ($name in @("server_url", "machine_id", "little_monk_code", "enrollment_key")) {
+        if ([string]::IsNullOrWhiteSpace([string]$config.$name)) {
+            throw "config.json is missing $name"
+        }
+    }
+    if ($config.server_url -notmatch "^https?://") {
+        throw "server_url must start with http:// or https://"
+    }
+
+    if ($ForceReenroll) {
+        Stop-Service -Name $serviceName -Force -ErrorAction SilentlyContinue
+        Remove-Item -LiteralPath (Join-Path $dataDirectory "credentials.json") -Force -ErrorAction SilentlyContinue
+    }
+
+    & $installer `
+        -ServiceExecutable $serviceExecutable `
+        -AgentExecutable $agentExecutable `
+        -ConfigPath $configPath
+
+    $service = Get-Service -Name $serviceName
+    if ($service.Status -ne "Running") {
+        throw "Service $serviceName did not start. Inspect $dataDirectory\service.log"
+    }
+
+    Write-Host "For Little Time Control is running." -ForegroundColor Green
+    Write-Host "Log: $dataDirectory\service.log"
+    Write-Host "The dashboard will show $($config.little_monk_display_name) after successful enrollment."
 }
-
-& $installer `
-    -ServiceExecutable $serviceExecutable `
-    -AgentExecutable $agentExecutable `
-    -ConfigPath $configPath
-
-$service = Get-Service -Name $serviceName
-if ($service.Status -ne "Running") {
-    throw "Service $serviceName did not start. Inspect $dataDirectory\service.log"
+catch {
+    $details = "$(Get-Date -Format o)`r`n$($_ | Out-String)"
+    Set-Content -LiteralPath $errorLog -Value $details -Encoding utf8
+    Write-Host "Deployment failed: $($_.Exception.Message)" -ForegroundColor Red
+    Write-Host "Details: $errorLog" -ForegroundColor Yellow
+    Read-Host "Press Enter to close"
+    exit 1
 }
-
-Write-Host "For Little Time Control is running." -ForegroundColor Green
-Write-Host "Log: $dataDirectory\service.log"
-Write-Host "The dashboard will show $($config.little_monk_display_name) after successful enrollment."
