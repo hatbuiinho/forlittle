@@ -12,7 +12,7 @@ public sealed class OverlayController
 
     public void Apply(string state, string reason, DateTimeOffset? nextAllowedAt, DateTimeOffset? extendedUntil)
     {
-        Application.Current.Dispatcher.Invoke(() =>
+        System.Windows.Application.Current.Dispatcher.Invoke(() =>
         {
             if (state is "ALLOWED" or "EXTENDED")
             {
@@ -54,7 +54,7 @@ public sealed class OverlayController
                 Top = bounds.Top,
                 Width = bounds.Width,
                 Height = bounds.Height,
-                Background = new SolidColorBrush(Color.FromRgb(11, 18, 12)),
+                Background = new SolidColorBrush(System.Windows.Media.Color.FromRgb(11, 18, 12)),
                 Content = CreateContent(detail, reason)
             };
             windows.Add(window);
@@ -68,12 +68,12 @@ public sealed class OverlayController
         {
             Width = 620,
             VerticalAlignment = VerticalAlignment.Center,
-            HorizontalAlignment = HorizontalAlignment.Center
+            HorizontalAlignment = System.Windows.HorizontalAlignment.Center
         };
         panel.Children.Add(new TextBlock
         {
             Text = "For Little",
-            Foreground = new SolidColorBrush(Color.FromRgb(177, 207, 152)),
+            Foreground = new SolidColorBrush(System.Windows.Media.Color.FromRgb(177, 207, 152)),
             FontSize = 16,
             FontWeight = FontWeights.Bold,
             TextAlignment = TextAlignment.Center
@@ -81,7 +81,7 @@ public sealed class OverlayController
         panel.Children.Add(new TextBlock
         {
             Text = "Đã hết thời gian sử dụng máy tính",
-            Foreground = Brushes.White,
+            Foreground = System.Windows.Media.Brushes.White,
             FontSize = 38,
             FontWeight = FontWeights.SemiBold,
             TextAlignment = TextAlignment.Center,
@@ -91,7 +91,7 @@ public sealed class OverlayController
         panel.Children.Add(new TextBlock
         {
             Text = detail,
-            Foreground = new SolidColorBrush(Color.FromRgb(220, 226, 218)),
+            Foreground = new SolidColorBrush(System.Windows.Media.Color.FromRgb(220, 226, 218)),
             FontSize = 20,
             TextAlignment = TextAlignment.Center,
             TextWrapping = TextWrapping.Wrap
@@ -99,7 +99,7 @@ public sealed class OverlayController
         panel.Children.Add(new TextBlock
         {
             Text = $"Trạng thái: {ReasonLabel(reason)}",
-            Foreground = new SolidColorBrush(Color.FromRgb(150, 166, 150)),
+            Foreground = new SolidColorBrush(System.Windows.Media.Color.FromRgb(150, 166, 150)),
             FontSize = 14,
             TextAlignment = TextAlignment.Center,
             Margin = new Thickness(0, 26, 0, 0)
