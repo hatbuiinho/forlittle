@@ -1,3 +1,5 @@
+using System.IO;
+
 namespace ForLittle.TimeControl.Agent;
 
 internal static class AgentLog
