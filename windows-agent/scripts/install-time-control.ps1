@@ -25,6 +25,26 @@ function Invoke-Sc {
     }
 }
 
+function Set-ServiceCommandLine {
+    param(
+        [string]$Name,
+        [string]$CommandLine
+    )
+
+    $service = Get-CimInstance -ClassName Win32_Service -Filter "Name='$Name'"
+    if ($null -eq $service) {
+        throw "Service $Name was not found"
+    }
+    $result = Invoke-CimMethod -InputObject $service -MethodName Change -Arguments @{
+        PathName = $CommandLine
+        StartMode = "Automatic"
+        DisplayName = "For Little Time Control"
+    }
+    if ($result.ReturnValue -ne 0) {
+        throw "Could not update service $Name (Win32_Service.Change returned $($result.ReturnValue))"
+    }
+}
+
 foreach ($path in @($ServiceExecutable, $AgentExecutable, $ConfigPath)) {
     if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
         throw "Required file was not found: $path"
@@ -66,7 +86,7 @@ if (-not (Get-Service -Name $ServiceName -ErrorAction SilentlyContinue)) {
         -StartupType Automatic | Out-Null
 }
 else {
-    Invoke-Sc config $ServiceName binPath= $serviceCommandLine
+    Set-ServiceCommandLine -Name $ServiceName -CommandLine $serviceCommandLine
 }
 
 Invoke-Sc config $ServiceName start= delayed-auto
