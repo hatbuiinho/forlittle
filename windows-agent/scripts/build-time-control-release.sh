@@ -49,6 +49,7 @@ dotnet publish "$ROOT_DIR/ui-agent/ForLittle.TimeControl.Agent.csproj" \
 cp "$ROOT_DIR/config.time-control.example.json" "$OUTPUT_DIR/config.time-control.example.json"
 cp "$ROOT_DIR/scripts/install-time-control.ps1" "$OUTPUT_DIR/install-time-control.ps1"
 cp "$ROOT_DIR/scripts/deploy-time-control.ps1" "$OUTPUT_DIR/deploy-time-control.ps1"
+cp "$ROOT_DIR/scripts/uninstall-time-control.ps1" "$OUTPUT_DIR/uninstall-time-control.ps1"
 
 cat <<EOF
 Release created: $OUTPUT_DIR

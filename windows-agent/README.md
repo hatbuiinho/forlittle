@@ -107,6 +107,8 @@ The command creates a timestamped folder under `dist/` containing both executabl
 
 Use `deploy-time-control.ps1 -ForceReenroll` only when you intentionally need to discard the local device credential and enroll the computer again.
 
+To remove the service, interactive agent, installed binaries, local credentials, policy cache, and logs before a clean installation, run the release's `uninstall-time-control.ps1` in PowerShell. It requests Administrator elevation and retains the machine record on the dashboard.
+
 ## Auto Start With Scheduled Task
 
 Run PowerShell as Administrator:
