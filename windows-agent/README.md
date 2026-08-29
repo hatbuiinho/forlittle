@@ -103,7 +103,7 @@ On the release machine, run:
 
 The script detects the host CPU architecture and creates either an `arm64` or `amd64` release. The target Windows architecture must match the release. Override it only when cross-building, for example `FORLITTLE_WINDOWS_ARCH=amd64 ./scripts/build-time-control-release.sh`.
 
-The command creates a timestamped folder under `dist/` containing both executables, the installer, deployment script, and config template. Copy that entire folder to the Windows computer, then run `deploy-time-control.ps1`. On its first run, the script creates `config.json` from the template and opens it in Notepad; fill in the values, save, and run the script again. It requests Administrator elevation, installs or updates the service, and starts it. Deployment failures stay visible and are written to `deploy-error.log` in the release directory.
+The command creates a timestamped folder under `dist/` containing both executables, the installer, deployment script, and config template. Copy that entire folder to the Windows computer, then run `deploy-time-control.ps1`. On its first run, the script creates `config.json` from the template and opens it in Notepad; fill in the values, save, and run the script again. It requests Administrator elevation, installs or updates the service, and starts it immediately at boot. Deployment failures stay visible and are written to `deploy-error.log` in the release directory.
 
 Use `deploy-time-control.ps1 -ForceReenroll` only when you intentionally need to discard the local device credential and enroll the computer again.
 

@@ -101,7 +101,9 @@ else {
     Set-ServiceCommandLine -Name $ServiceName -CommandLine $serviceCommandLine
 }
 
-Invoke-Sc config $ServiceName start= delayed-auto
+# Start immediately at boot so the active Standard User receives time-control
+# state without waiting for Windows delayed auto-start.
+Invoke-Sc config $ServiceName start= auto
 Invoke-Sc failure $ServiceName reset= 86400 actions= restart/5000/restart/5000/restart/5000
 Invoke-Sc failureflag $ServiceName 1
 Start-Service -Name $ServiceName
