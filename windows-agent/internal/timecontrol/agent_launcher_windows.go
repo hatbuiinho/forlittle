@@ -35,6 +35,15 @@ func restartAgent(ctx context.Context, agentPath string) error {
 	}
 	defer primaryToken.Close()
 
+	// CreateProcessAsUser does not automatically use the target user's
+	// environment. Without this block, LOCALAPPDATA and other profile paths
+	// resolve to SYSTEM, which breaks per-user agent data and WPF behavior.
+	var environment *uint16
+	if err := windows.CreateEnvironmentBlock(&environment, primaryToken, false); err != nil {
+		return fmt.Errorf("create user environment: %w", err)
+	}
+	defer windows.DestroyEnvironmentBlock(environment)
+
 	application, err := windows.UTF16PtrFromString(agentPath)
 	if err != nil {
 		return err
@@ -53,7 +62,8 @@ func restartAgent(ctx context.Context, agentPath string) error {
 	}
 	startup := windows.StartupInfo{Cb: uint32(unsafe.Sizeof(windows.StartupInfo{})), Desktop: desktop}
 	var process windows.ProcessInformation
-	if err := windows.CreateProcessAsUser(primaryToken, application, commandLine, nil, nil, false, windows.CREATE_NEW_CONSOLE, nil, workingDirectory, &startup, &process); err != nil {
+	flags := uint32(windows.CREATE_NEW_CONSOLE | windows.CREATE_UNICODE_ENVIRONMENT)
+	if err := windows.CreateProcessAsUser(primaryToken, application, commandLine, nil, nil, false, flags, environment, workingDirectory, &startup, &process); err != nil {
 		return fmt.Errorf("start agent in user session: %w", err)
 	}
 	_ = windows.CloseHandle(process.Process)
