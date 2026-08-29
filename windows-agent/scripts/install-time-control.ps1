@@ -7,6 +7,9 @@ param(
     [string]$AgentExecutable,
 
     [Parameter(Mandatory = $true)]
+    [string]$AgentDirectory,
+
+    [Parameter(Mandatory = $true)]
     [string]$ConfigPath,
 
     [string]$InstallDirectory = "C:\Program Files\ForLittle\TimeControl",
@@ -50,12 +53,16 @@ foreach ($path in @($ServiceExecutable, $AgentExecutable, $ConfigPath)) {
         throw "Required file was not found: $path"
     }
 }
+if (-not (Test-Path -LiteralPath $AgentDirectory -PathType Container)) {
+    throw "Agent directory was not found: $AgentDirectory"
+}
 
 New-Item -ItemType Directory -Path $InstallDirectory -Force | Out-Null
 New-Item -ItemType Directory -Path $DataDirectory -Force | Out-Null
 
 $installedService = Join-Path $InstallDirectory "forlittle-time-control.exe"
-$installedAgent = Join-Path $InstallDirectory "ForLittle.TimeControl.Agent.exe"
+$installedAgentDirectory = Join-Path $InstallDirectory "agent"
+$installedAgent = Join-Path $installedAgentDirectory "ForLittle.TimeControl.Agent.exe"
 $installedConfig = Join-Path $DataDirectory "config.json"
 
 if (Get-Service -Name $ServiceName -ErrorAction SilentlyContinue) {
@@ -63,7 +70,8 @@ if (Get-Service -Name $ServiceName -ErrorAction SilentlyContinue) {
 }
 
 Copy-Item -LiteralPath $ServiceExecutable -Destination $installedService -Force
-Copy-Item -LiteralPath $AgentExecutable -Destination $installedAgent -Force
+Remove-Item -LiteralPath $installedAgentDirectory -Recurse -Force -ErrorAction SilentlyContinue
+Copy-Item -LiteralPath $AgentDirectory -Destination $installedAgentDirectory -Recurse -Force
 Copy-Item -LiteralPath $ConfigPath -Destination $installedConfig -Force
 
 $serviceConfig = Get-Content -LiteralPath $installedConfig -Raw | ConvertFrom-Json

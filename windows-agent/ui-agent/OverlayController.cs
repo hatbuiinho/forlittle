@@ -2,7 +2,6 @@ using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
-using Forms = System.Windows.Forms;
 
 namespace ForLittle.TimeControl.Agent;
 
@@ -41,25 +40,23 @@ public sealed class OverlayController
     private void Show(string detail, string reason)
     {
         Hide();
-        foreach (var screen in Forms.Screen.AllScreens)
+        // A virtual-screen overlay covers every monitor without loading the
+        // Windows Forms interop layer. This is important for native ARM64 WPF.
+        var window = new Window
         {
-            var bounds = screen.Bounds;
-            var window = new Window
-            {
-                WindowStyle = WindowStyle.None,
-                ResizeMode = ResizeMode.NoResize,
-                ShowInTaskbar = false,
-                Topmost = true,
-                Left = bounds.Left,
-                Top = bounds.Top,
-                Width = bounds.Width,
-                Height = bounds.Height,
-                Background = new SolidColorBrush(System.Windows.Media.Color.FromRgb(11, 18, 12)),
-                Content = CreateContent(detail, reason)
-            };
-            windows.Add(window);
-            window.Show();
-        }
+            WindowStyle = WindowStyle.None,
+            ResizeMode = ResizeMode.NoResize,
+            ShowInTaskbar = false,
+            Topmost = true,
+            Left = SystemParameters.VirtualScreenLeft,
+            Top = SystemParameters.VirtualScreenTop,
+            Width = SystemParameters.VirtualScreenWidth,
+            Height = SystemParameters.VirtualScreenHeight,
+            Background = new SolidColorBrush(System.Windows.Media.Color.FromRgb(11, 18, 12)),
+            Content = CreateContent(detail, reason)
+        };
+        windows.Add(window);
+        window.Show();
     }
 
     private static UIElement CreateContent(string detail, string reason)

@@ -38,7 +38,8 @@ try {
     $ReleaseDirectory = (Resolve-Path -LiteralPath $ReleaseDirectory).Path
     $errorLog = Join-Path $ReleaseDirectory "deploy-error.log"
     $serviceExecutable = Join-Path $ReleaseDirectory "forlittle-time-control.exe"
-    $agentExecutable = Join-Path $ReleaseDirectory "ForLittle.TimeControl.Agent.exe"
+    $agentDirectory = Join-Path $ReleaseDirectory "agent"
+    $agentExecutable = Join-Path $agentDirectory "ForLittle.TimeControl.Agent.exe"
     $configPath = Join-Path $ReleaseDirectory "config.json"
     $configTemplate = Join-Path $ReleaseDirectory "config.time-control.example.json"
     $installer = Join-Path $ReleaseDirectory "install-time-control.ps1"
@@ -78,6 +79,7 @@ try {
     & $installer `
         -ServiceExecutable $serviceExecutable `
         -AgentExecutable $agentExecutable `
+        -AgentDirectory $agentDirectory `
         -ConfigPath $configPath
 
     $service = Get-Service -Name $serviceName
