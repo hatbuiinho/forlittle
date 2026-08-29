@@ -124,7 +124,7 @@ func LoadTimeControl(path string) (TimeControlConfig, error) {
 		cfg.HeartbeatSeconds = 30
 	}
 	if cfg.AgentPath == "" {
-		cfg.AgentPath = `C:\Program Files\ForLittle\TimeControl\ForLittle.TimeControl.Agent.exe`
+		cfg.AgentPath = `C:\Program Files\ForLittle\TimeControl\agent\ForLittle.TimeControl.Agent.exe`
 	}
 	if cfg.LittleMonkCode == "" {
 		cfg.LittleMonkCode = cfg.MachineID

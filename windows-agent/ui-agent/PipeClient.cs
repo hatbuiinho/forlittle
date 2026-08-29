@@ -22,6 +22,7 @@ public sealed class PipeClient(OverlayController overlays, CancellationToken can
             {
                 using var pipe = new NamedPipeClientStream(".", PipeName, PipeDirection.InOut, PipeOptions.Asynchronous);
                 await pipe.ConnectAsync(5000, cancellation);
+                AgentLog.Write("connected to service pipe");
                 using var reader = new StreamReader(pipe, Encoding.UTF8, leaveOpen: true);
                 using var writer = new StreamWriter(pipe, Encoding.UTF8, leaveOpen: true) { AutoFlush = true };
                 using var heartbeat = new PeriodicTimer(TimeSpan.FromSeconds(5));
@@ -36,10 +37,9 @@ public sealed class PipeClient(OverlayController overlays, CancellationToken can
             {
                 return;
             }
-            catch
+            catch (Exception exception)
             {
-                // The Service watchdog will request a scheduled-task restart if this
-                // process is terminated. A short reconnect delay also handles service restarts.
+                AgentLog.Write($"pipe connection failed: {exception}");
             }
             await Task.Delay(ReconnectDelay, cancellation);
         }
@@ -53,6 +53,7 @@ public sealed class PipeClient(OverlayController overlays, CancellationToken can
             if (line is null) return;
             var message = JsonSerializer.Deserialize<ServiceMessage>(line);
             if (message is null) continue;
+            AgentLog.Write($"received {message.Type ?? "unknown"} state={message.State ?? ""}");
             if (message.Type == "FORCE_LOCK") overlays.LockWorkstation();
             else if (message.Type == "FORCE_LOGOUT") Process.Start(new ProcessStartInfo("shutdown.exe", "/l") { UseShellExecute = false });
             else overlays.Apply(message.State ?? "BLOCKED", message.Reason ?? "policy", message.NextAllowedAt, message.ExtendedUntil);

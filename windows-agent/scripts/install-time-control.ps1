@@ -63,6 +63,7 @@ New-Item -ItemType Directory -Path $DataDirectory -Force | Out-Null
 $installedService = Join-Path $InstallDirectory "forlittle-time-control.exe"
 $installedAgentDirectory = Join-Path $InstallDirectory "agent"
 $installedAgent = Join-Path $installedAgentDirectory "ForLittle.TimeControl.Agent.exe"
+$legacyAgent = Join-Path $InstallDirectory "ForLittle.TimeControl.Agent.exe"
 $installedConfig = Join-Path $DataDirectory "config.json"
 
 if (Get-Service -Name $ServiceName -ErrorAction SilentlyContinue) {
@@ -72,6 +73,9 @@ if (Get-Service -Name $ServiceName -ErrorAction SilentlyContinue) {
 Copy-Item -LiteralPath $ServiceExecutable -Destination $installedService -Force
 Remove-Item -LiteralPath $installedAgentDirectory -Recurse -Force -ErrorAction SilentlyContinue
 Copy-Item -LiteralPath $AgentDirectory -Destination $installedAgentDirectory -Recurse -Force
+# Older releases placed the agent directly in the install directory. Remove it
+# after the service is stopped so manual starts cannot launch a stale runtime.
+Remove-Item -LiteralPath $legacyAgent -Force -ErrorAction SilentlyContinue
 Copy-Item -LiteralPath $ConfigPath -Destination $installedConfig -Force
 
 $serviceConfig = Get-Content -LiteralPath $installedConfig -Raw | ConvertFrom-Json
