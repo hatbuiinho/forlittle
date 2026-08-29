@@ -99,7 +99,12 @@ func runProgram(ctx context.Context, configPath string, logger *log.Logger) {
 	}
 	hub := ipc.NewHub()
 	service := timecontrol.NewService(cfg, hub, logger)
-	pipe := ipc.PipeServer{Hub: hub, Initial: service.CurrentMessage, OnAgentMessage: service.HandleAgentMessage}
+	pipe := ipc.PipeServer{
+		Hub:            hub,
+		Initial:        service.CurrentMessage,
+		OnAgentMessage: service.HandleAgentMessage,
+		OnError:        func(err error) { logger.Printf("named pipe: %v", err) },
+	}
 	go func() {
 		if err := pipe.Serve(ctx); err != nil && ctx.Err() == nil {
 			logger.Printf("named pipe stopped: %v", err)

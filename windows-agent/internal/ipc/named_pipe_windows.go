@@ -6,6 +6,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net"
 
 	"forlittle/windows-agent/internal/timecontrol"
@@ -20,6 +21,7 @@ type PipeServer struct {
 	Initial        func() timecontrol.StateMessage
 	Name           string
 	OnAgentMessage func(timecontrol.AgentMessage)
+	OnError        func(error)
 }
 
 func (s PipeServer) Serve(ctx context.Context) error {
@@ -50,27 +52,39 @@ func (s PipeServer) serveConnection(ctx context.Context, connection net.Conn) {
 	messages, unsubscribe := s.Hub.Subscribe()
 	defer unsubscribe()
 	if s.Initial != nil && !writeMessage(connection, s.Initial()) {
+		s.report(fmt.Errorf("write initial agent state: failed"))
 		return
 	}
 
-	done := make(chan struct{})
-	go readAgentMessages(connection, s.OnAgentMessage, done)
+	done := make(chan error, 1)
+	go func() { done <- readAgentMessages(connection, s.OnAgentMessage) }()
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case <-done:
+		case err := <-done:
+			if err != nil {
+				s.report(fmt.Errorf("read agent messages: %w", err))
+			}
 			return
 		case message, ok := <-messages:
 			if !ok || !writeMessage(connection, message) {
+				if ok {
+					s.report(fmt.Errorf("write agent state: failed"))
+				}
 				return
 			}
 		}
 	}
 }
 
-func readAgentMessages(connection net.Conn, callback func(timecontrol.AgentMessage), done chan<- struct{}) {
-	defer close(done)
+func (s PipeServer) report(err error) {
+	if s.OnError != nil {
+		s.OnError(err)
+	}
+}
+
+func readAgentMessages(connection net.Conn, callback func(timecontrol.AgentMessage)) error {
 	scanner := bufio.NewScanner(connection)
 	scanner.Buffer(make([]byte, 256), 4096)
 	for scanner.Scan() {
@@ -82,6 +96,7 @@ func readAgentMessages(connection net.Conn, callback func(timecontrol.AgentMessa
 			callback(message)
 		}
 	}
+	return scanner.Err()
 }
 
 func writeMessage(connection net.Conn, message timecontrol.StateMessage) bool {

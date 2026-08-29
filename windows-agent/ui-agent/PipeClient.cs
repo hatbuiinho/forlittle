@@ -23,8 +23,11 @@ public sealed class PipeClient(OverlayController overlays, CancellationToken can
                 using var pipe = new NamedPipeClientStream(".", PipeName, PipeDirection.InOut, PipeOptions.Asynchronous);
                 await pipe.ConnectAsync(5000, cancellation);
                 AgentLog.Write("connected to service pipe");
-                using var reader = new StreamReader(pipe, Encoding.UTF8, leaveOpen: true);
-                using var writer = new StreamWriter(pipe, Encoding.UTF8, leaveOpen: true) { AutoFlush = true };
+                // A BOM is valid for files but corrupts the first JSON message
+                // sent through a line-oriented named-pipe protocol.
+                var utf8WithoutBom = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
+                using var reader = new StreamReader(pipe, utf8WithoutBom, leaveOpen: true);
+                using var writer = new StreamWriter(pipe, utf8WithoutBom, leaveOpen: true) { AutoFlush = true };
                 using var heartbeat = new PeriodicTimer(TimeSpan.FromSeconds(5));
                 using var connectionCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellation);
                 var readTask = ReadMessagesAsync(reader, connectionCancellation.Token);
