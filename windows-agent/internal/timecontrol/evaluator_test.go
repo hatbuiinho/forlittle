@@ -48,3 +48,14 @@ func TestScheduleUsesPolicyTimezone(t *testing.T) {
 		t.Fatalf("expected schedule to use policy timezone: %+v", state)
 	}
 }
+
+func TestInvalidPolicyTimezoneDoesNotFallBackToUTC(t *testing.T) {
+	state := Evaluate(time.Now().UTC(), Policy{
+		Enabled:  true,
+		Timezone: "Not/A_Real_Timezone",
+		Schedule: []ScheduleWindow{{DayOfWeek: 1, StartMinutes: 19 * 60, EndMinutes: 20 * 60}},
+	}, Override{})
+	if state.State != StateBlocked || state.Reason != "invalid_timezone" {
+		t.Fatalf("invalid timezone must not silently evaluate in UTC: %+v", state)
+	}
+}

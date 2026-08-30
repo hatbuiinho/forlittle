@@ -19,9 +19,12 @@ func Evaluate(now time.Time, policy Policy, override Override) EffectiveState {
 		return EffectiveState{State: StateAllowed, Reason: "policy_disabled"}
 	}
 	if policy.Timezone != "" {
-		if location, err := time.LoadLocation(policy.Timezone); err == nil {
-			now = now.In(location)
+		location, err := time.LoadLocation(policy.Timezone)
+		if err != nil {
+			// Never fall back to UTC here: it would enforce a valid local schedule at the wrong hour.
+			return EffectiveState{State: StateBlocked, Reason: "invalid_timezone"}
 		}
+		now = now.In(location)
 	}
 	if isScheduled(now, policy.Schedule) {
 		return EffectiveState{State: StateAllowed, Reason: "schedule"}

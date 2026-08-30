@@ -93,7 +93,7 @@ internal static class ScheduleViewer
         {
             content.Children.Add(new TextBlock
             {
-                Text = $"Lần dùng máy tiếp theo: {snapshot.NextAllowedAt.Value.LocalDateTime:t}",
+                Text = $"Lần dùng máy tiếp theo: {FormatPolicyTime(snapshot.NextAllowedAt.Value, policy.Timezone)}",
                 FontSize = 15,
                 Foreground = new SolidColorBrush(Color.FromRgb(70, 82, 72)),
                 Margin = new Thickness(0, 18, 0, 0)
@@ -127,6 +127,18 @@ internal static class ScheduleViewer
     }
 
     private static string FormatTime(int minutes) => $"{minutes / 60:00}:{minutes % 60:00}";
+
+    private static string FormatPolicyTime(DateTimeOffset value, string timezone)
+    {
+        try
+        {
+            return TimeZoneInfo.ConvertTime(value, TimeZoneInfo.FindSystemTimeZoneById(timezone)).ToString("HH:mm");
+        }
+        catch (TimeZoneNotFoundException) when (string.Equals(timezone, "Asia/Ho_Chi_Minh", StringComparison.OrdinalIgnoreCase))
+        {
+            return TimeZoneInfo.ConvertTime(value, TimeZoneInfo.FindSystemTimeZoneById("SE Asia Standard Time")).ToString("HH:mm");
+        }
+    }
 
     internal sealed record ScheduleSnapshot(
         [property: JsonPropertyName("type")] string? Type,

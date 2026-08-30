@@ -11,7 +11,7 @@ public sealed class OverlayController
 
     public event Action? PolicyRefreshRequested;
 
-    public void Apply(string state, string reason, DateTimeOffset? nextAllowedAt, DateTimeOffset? extendedUntil)
+    public void Apply(string state, string reason, DateTimeOffset? nextAllowedAt, DateTimeOffset? extendedUntil, string? timezone)
     {
         System.Windows.Application.Current.Dispatcher.Invoke(() =>
         {
@@ -22,7 +22,7 @@ public sealed class OverlayController
             }
 
             var detail = nextAllowedAt is not null
-                ? $"Các Chú Tiểu có thể dùng máy lại vào lúc {nextAllowedAt.Value.LocalDateTime:t}."
+                ? $"Các Chú Tiểu có thể dùng máy lại vào lúc {FormatPolicyTime(nextAllowedAt.Value, timezone)}."
                 : "Các Chú Tiểu hãy trao đổi với Sư Chú khi cần dùng máy thêm.";
             Show(detail, reason);
         });
@@ -150,6 +150,29 @@ public sealed class OverlayController
         "force_lock" => "Sư Chú đã khóa máy",
         _ => "Đã đến giờ nghỉ ngơi"
     };
+
+    private static string FormatPolicyTime(DateTimeOffset value, string? timezone)
+    {
+        try
+        {
+            if (!string.IsNullOrWhiteSpace(timezone))
+            {
+                var zone = TimeZoneInfo.FindSystemTimeZoneById(timezone);
+                return TimeZoneInfo.ConvertTime(value, zone).ToString("HH:mm");
+            }
+        }
+        catch (TimeZoneNotFoundException)
+        {
+            // Windows .NET 8 accepts IANA zone names, but retain a precise
+            // fallback for older Windows installations used in this project.
+            if (string.Equals(timezone, "Asia/Ho_Chi_Minh", StringComparison.OrdinalIgnoreCase))
+            {
+                var zone = TimeZoneInfo.FindSystemTimeZoneById("SE Asia Standard Time");
+                return TimeZoneInfo.ConvertTime(value, zone).ToString("HH:mm");
+            }
+        }
+        return value.ToString("HH:mm");
+    }
 
     private static class NativeMethods
     {

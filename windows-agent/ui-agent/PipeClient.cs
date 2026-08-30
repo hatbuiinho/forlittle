@@ -77,7 +77,7 @@ public sealed class PipeClient(OverlayController overlays, CancellationToken can
             AgentLog.Write($"received {message.Type ?? "unknown"} state={message.State ?? ""}");
             if (message.Type == "FORCE_LOCK") overlays.LockWorkstation();
             else if (message.Type == "FORCE_LOGOUT") Process.Start(new ProcessStartInfo("shutdown.exe", "/l") { UseShellExecute = false });
-            else if (message.Type == "STATE_CHANGED") overlays.Apply(message.State ?? "BLOCKED", message.Reason ?? "policy", message.NextAllowedAt, message.ExtendedUntil);
+            else if (message.Type == "STATE_CHANGED") overlays.Apply(message.State ?? "BLOCKED", message.Reason ?? "policy", message.NextAllowedAt, message.ExtendedUntil, message.Timezone);
         }
     }
 
@@ -122,7 +122,8 @@ public sealed class PipeClient(OverlayController overlays, CancellationToken can
         [property: JsonPropertyName("state")] string? State,
         [property: JsonPropertyName("reason")] string? Reason,
         [property: JsonPropertyName("next_allowed_at")] DateTimeOffset? NextAllowedAt,
-        [property: JsonPropertyName("extended_until")] DateTimeOffset? ExtendedUntil);
+        [property: JsonPropertyName("extended_until")] DateTimeOffset? ExtendedUntil,
+        [property: JsonPropertyName("timezone")] string? Timezone);
 
     private sealed record UsageSample(
         [property: JsonPropertyName("type")] string Type,

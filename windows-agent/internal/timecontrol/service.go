@@ -231,9 +231,10 @@ func (s *Service) recalculate(now time.Time) {
 	changed := !sameEffectiveState(effective, s.state.Effective)
 	s.state.Effective = effective
 	_ = s.saveLocked()
+	message := s.currentMessageLocked()
 	s.mu.Unlock()
 	if changed && s.publisher != nil {
-		s.publisher.Publish(StateMessage{Type: "STATE_CHANGED", State: effective.State, Reason: effective.Reason, NextAllowedAt: effective.NextAllowedAt, ExtendedUntil: effective.ExtendedUntil})
+		s.publisher.Publish(message)
 	}
 }
 
@@ -334,8 +335,12 @@ func (s *Service) ensureEnrollment(ctx context.Context) bool {
 func (s *Service) CurrentMessage() StateMessage {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	return s.currentMessageLocked()
+}
+
+func (s *Service) currentMessageLocked() StateMessage {
 	effective := s.state.Effective
-	return StateMessage{Type: "STATE_CHANGED", State: effective.State, Reason: effective.Reason, NextAllowedAt: effective.NextAllowedAt, ExtendedUntil: effective.ExtendedUntil}
+	return StateMessage{Type: "STATE_CHANGED", State: effective.State, Reason: effective.Reason, NextAllowedAt: effective.NextAllowedAt, ExtendedUntil: effective.ExtendedUntil, Timezone: s.state.Policy.Timezone}
 }
 
 func (s *Service) CurrentPolicyMessage() StateMessage {
@@ -343,7 +348,7 @@ func (s *Service) CurrentPolicyMessage() StateMessage {
 	defer s.mu.Unlock()
 	effective := s.state.Effective
 	policy := s.state.Policy
-	return StateMessage{Type: "POLICY_SNAPSHOT", State: effective.State, Reason: effective.Reason, NextAllowedAt: effective.NextAllowedAt, ExtendedUntil: effective.ExtendedUntil, Policy: &policy}
+	return StateMessage{Type: "POLICY_SNAPSHOT", State: effective.State, Reason: effective.Reason, NextAllowedAt: effective.NextAllowedAt, ExtendedUntil: effective.ExtendedUntil, Timezone: policy.Timezone, Policy: &policy}
 }
 
 func (s *Service) trustedNow() time.Time {
