@@ -100,10 +100,16 @@ func runProgram(ctx context.Context, configPath string, logger *log.Logger) {
 	hub := ipc.NewHub()
 	service := timecontrol.NewService(cfg, hub, logger)
 	pipe := ipc.PipeServer{
-		Hub:            hub,
-		Initial:        service.CurrentMessage,
-		OnAgentMessage: service.HandleAgentMessage,
-		OnError:        func(err error) { logger.Printf("named pipe: %v", err) },
+		Hub:     hub,
+		Initial: service.CurrentMessage,
+		OnAgentMessage: func(message timecontrol.AgentMessage) {
+			if message.Type == "REQUEST_POLICY_SCHEDULE" {
+				logger.Printf("schedule viewer requested current policy")
+			}
+			service.HandleAgentMessage(message)
+		},
+		Response: service.AgentResponse,
+		OnError:  func(err error) { logger.Printf("named pipe: %v", err) },
 	}
 	go func() {
 		if err := pipe.Serve(ctx); err != nil && ctx.Err() == nil {

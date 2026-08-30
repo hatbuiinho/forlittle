@@ -280,9 +280,6 @@ func (s *Service) HandleAgentMessage(message AgentMessage) {
 		return
 	}
 	if message.Type == "REQUEST_POLICY_SCHEDULE" {
-		if s.publisher != nil {
-			s.publisher.Publish(s.CurrentPolicyMessage())
-		}
 		return
 	}
 	if message.Type == "AGENT_HEARTBEAT" {
@@ -308,6 +305,15 @@ func (s *Service) HandleAgentMessage(message AgentMessage) {
 	bucket.IdleSeconds += message.IdleSeconds
 	s.state.UsageBuckets[key] = bucket
 	_ = s.saveLocked()
+}
+
+// AgentResponse returns messages that must be delivered only to the pipe
+// connection that requested them, rather than broadcasting them to every UI.
+func (s *Service) AgentResponse(message AgentMessage) (StateMessage, bool) {
+	if message.Type != "REQUEST_POLICY_SCHEDULE" {
+		return StateMessage{}, false
+	}
+	return s.CurrentPolicyMessage(), true
 }
 
 func (s *Service) AgentHealthy() bool {

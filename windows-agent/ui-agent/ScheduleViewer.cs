@@ -17,10 +17,8 @@ internal static class ScheduleViewer
     internal static async Task<ScheduleSnapshot> LoadAsync(CancellationToken cancellation)
     {
         AgentLog.Write("connecting to service pipe for schedule viewer");
-        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellation);
-        timeout.CancelAfter(TimeSpan.FromSeconds(10));
         using var pipe = new NamedPipeClientStream(".", PipeName, PipeDirection.InOut, PipeOptions.Asynchronous);
-        await pipe.ConnectAsync(5000, timeout.Token);
+        await pipe.ConnectAsync(5000, cancellation);
         AgentLog.Write("connected to service pipe for schedule viewer");
         var utf8WithoutBom = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
         using var reader = new StreamReader(pipe, utf8WithoutBom, leaveOpen: true);
@@ -30,7 +28,12 @@ internal static class ScheduleViewer
 
         while (true)
         {
-            var line = await reader.ReadLineAsync(timeout.Token);
+            // NamedPipeStream does not reliably interrupt a pending ReadLineAsync
+            // on every Windows build, so race the read against an explicit timeout.
+            var readTask = reader.ReadLineAsync(cancellation).AsTask();
+            var completed = await Task.WhenAny(readTask, Task.Delay(TimeSpan.FromSeconds(10), cancellation));
+            if (completed != readTask) throw new TimeoutException("timed out waiting for the local service response");
+            var line = await readTask;
             if (line is null) throw new IOException("service closed the schedule request");
             var snapshot = JsonSerializer.Deserialize<ScheduleSnapshot>(line);
             if (snapshot?.Type == "POLICY_SNAPSHOT" && snapshot.Policy is not null)

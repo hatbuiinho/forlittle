@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"sync"
 
 	"forlittle/windows-agent/internal/timecontrol"
 
@@ -21,6 +22,7 @@ type PipeServer struct {
 	Initial        func() timecontrol.StateMessage
 	Name           string
 	OnAgentMessage func(timecontrol.AgentMessage)
+	Response       func(timecontrol.AgentMessage) (timecontrol.StateMessage, bool)
 	OnError        func(error)
 }
 
@@ -51,13 +53,30 @@ func (s PipeServer) serveConnection(ctx context.Context, connection net.Conn) {
 	defer connection.Close()
 	messages, unsubscribe := s.Hub.Subscribe()
 	defer unsubscribe()
-	if s.Initial != nil && !writeMessage(connection, s.Initial()) {
+	var writeMu sync.Mutex
+	write := func(message timecontrol.StateMessage) bool {
+		writeMu.Lock()
+		defer writeMu.Unlock()
+		return writeMessage(connection, message)
+	}
+	if s.Initial != nil && !write(s.Initial()) {
 		s.report(fmt.Errorf("write initial agent state: failed"))
 		return
 	}
 
 	done := make(chan error, 1)
-	go func() { done <- readAgentMessages(connection, s.OnAgentMessage) }()
+	go func() {
+		done <- readAgentMessages(connection, func(message timecontrol.AgentMessage) {
+			if s.OnAgentMessage != nil {
+				s.OnAgentMessage(message)
+			}
+			if s.Response != nil {
+				if response, ok := s.Response(message); ok && !write(response) {
+					s.report(fmt.Errorf("write direct agent response: failed"))
+				}
+			}
+		})
+	}()
 	for {
 		select {
 		case <-ctx.Done():
@@ -68,7 +87,7 @@ func (s PipeServer) serveConnection(ctx context.Context, connection net.Conn) {
 			}
 			return
 		case message, ok := <-messages:
-			if !ok || !writeMessage(connection, message) {
+			if !ok || !write(message) {
 				if ok {
 					s.report(fmt.Errorf("write agent state: failed"))
 				}
