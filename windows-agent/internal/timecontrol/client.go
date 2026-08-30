@@ -74,11 +74,11 @@ func (c *Client) FetchCommands(ctx context.Context) ([]Command, time.Time, error
 	return response.Commands, response.ServerTime, nil
 }
 
-func (c *Client) Heartbeat(ctx context.Context, state EffectiveState, agentHealthy bool) (time.Time, error) {
+func (c *Client) Heartbeat(ctx context.Context, state EffectiveState, agentHealthy bool, appliedPolicyVersion int) (time.Time, error) {
 	var response struct {
 		ServerTime time.Time `json:"server_time"`
 	}
-	payload := map[string]any{"effective_state": state.State, "state_reason": state.Reason, "next_allowed_at": state.NextAllowedAt, "extended_until": state.ExtendedUntil, "agent_healthy": agentHealthy}
+	payload := map[string]any{"effective_state": state.State, "state_reason": state.Reason, "next_allowed_at": state.NextAllowedAt, "extended_until": state.ExtendedUntil, "agent_healthy": agentHealthy, "applied_policy_version": appliedPolicyVersion}
 	if err := c.request(ctx, http.MethodPost, "/api/v1/devices/heartbeat", payload, true, &response); err != nil {
 		return time.Time{}, err
 	}

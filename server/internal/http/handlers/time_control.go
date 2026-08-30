@@ -45,11 +45,12 @@ type deviceEnrollmentRequest struct {
 var errMachineAssignedToAnotherLittleMonk = errors.New("machine is already assigned to another little monk")
 
 type deviceHeartbeatRequest struct {
-	EffectiveState string     `json:"effective_state" binding:"required"`
-	StateReason    string     `json:"state_reason" binding:"required"`
-	NextAllowedAt  *time.Time `json:"next_allowed_at"`
-	ExtendedUntil  *time.Time `json:"extended_until"`
-	AgentHealthy   bool       `json:"agent_healthy"`
+	EffectiveState       string     `json:"effective_state" binding:"required"`
+	StateReason          string     `json:"state_reason" binding:"required"`
+	NextAllowedAt        *time.Time `json:"next_allowed_at"`
+	ExtendedUntil        *time.Time `json:"extended_until"`
+	AgentHealthy         bool       `json:"agent_healthy"`
+	AppliedPolicyVersion int        `json:"applied_policy_version"`
 }
 
 type usageBucketInput struct {
@@ -208,7 +209,7 @@ func (h TimeControlHandler) Heartbeat(c *gin.Context) {
 	}
 	machineID := c.GetString("machine_id")
 	now := time.Now().UTC()
-	state := models.MachineTimeState{MachineID: machineID, EffectiveState: input.EffectiveState, StateReason: strings.TrimSpace(input.StateReason), NextAllowedAt: input.NextAllowedAt, ExtendedUntil: input.ExtendedUntil, AgentHealthy: input.AgentHealthy, LastReportedAt: &now}
+	state := models.MachineTimeState{MachineID: machineID, EffectiveState: input.EffectiveState, StateReason: strings.TrimSpace(input.StateReason), NextAllowedAt: input.NextAllowedAt, ExtendedUntil: input.ExtendedUntil, AgentHealthy: input.AgentHealthy, AppliedPolicyVersion: input.AppliedPolicyVersion, PolicyAppliedAt: &now, LastReportedAt: &now}
 	if state.StateReason == "" {
 		state.StateReason = "reported"
 	}
@@ -406,6 +407,29 @@ func (h TimeControlHandler) CreateCommandAdmin(c *gin.Context) {
 		return
 	}
 	h.notifyCommand(machineID, command.CommandID)
+	c.JSON(http.StatusCreated, command)
+}
+
+// SyncMachinePolicyAdmin requests an immediate policy fetch from one machine.
+// The machine reports the applied version in its next heartbeat.
+func (h TimeControlHandler) SyncMachinePolicyAdmin(c *gin.Context) {
+	machineID := strings.TrimSpace(c.Param("machineId"))
+	var machine models.Machine
+	if err := h.DB.Where("machine_id = ?", machineID).First(&machine).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "machine not found"})
+			return
+		}
+		internalServerError(c, "could not load machine")
+		return
+	}
+	payload, _ := json.Marshal(map[string]string{"reason": "sư_chú_yêu_cầu_đồng_bộ"})
+	command := models.DeviceCommand{CommandID: newCommandID(), MachineID: machine.MachineID, Type: "REFRESH_POLICY", PayloadJSON: string(payload), Status: "PENDING"}
+	if err := h.DB.Create(&command).Error; err != nil {
+		internalServerError(c, "could not queue policy refresh")
+		return
+	}
+	h.notifyCommand(machine.MachineID, command.CommandID)
 	c.JSON(http.StatusCreated, command)
 }
 

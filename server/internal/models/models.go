@@ -117,15 +117,17 @@ type TimeScheduleWindow struct {
 }
 
 type MachineTimeState struct {
-	ID             uint       `gorm:"primaryKey" json:"id"`
-	MachineID      string     `gorm:"uniqueIndex;size:120;not null" json:"machine_id"`
-	EffectiveState string     `gorm:"size:20;not null" json:"effective_state"`
-	StateReason    string     `gorm:"size:100;not null" json:"state_reason"`
-	NextAllowedAt  *time.Time `json:"next_allowed_at"`
-	ExtendedUntil  *time.Time `json:"extended_until"`
-	AgentHealthy   bool       `gorm:"not null;default:false" json:"agent_healthy"`
-	LastReportedAt *time.Time `json:"last_reported_at"`
-	UpdatedAt      time.Time  `json:"updated_at"`
+	ID                   uint       `gorm:"primaryKey" json:"id"`
+	MachineID            string     `gorm:"uniqueIndex;size:120;not null" json:"machine_id"`
+	EffectiveState       string     `gorm:"size:20;not null" json:"effective_state"`
+	StateReason          string     `gorm:"size:100;not null" json:"state_reason"`
+	NextAllowedAt        *time.Time `json:"next_allowed_at"`
+	ExtendedUntil        *time.Time `json:"extended_until"`
+	AgentHealthy         bool       `gorm:"not null;default:false" json:"agent_healthy"`
+	AppliedPolicyVersion int        `gorm:"not null;default:0" json:"applied_policy_version"`
+	PolicyAppliedAt      *time.Time `json:"policy_applied_at"`
+	LastReportedAt       *time.Time `json:"last_reported_at"`
+	UpdatedAt            time.Time  `json:"updated_at"`
 }
 
 type DeviceCommand struct {

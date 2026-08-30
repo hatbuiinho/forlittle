@@ -129,6 +129,8 @@ func (s *Service) syncPolicy(ctx context.Context) {
 	_ = s.saveLocked()
 	s.mu.Unlock()
 	s.recalculate(s.trustedNow())
+	// Report immediately so Sư Chú can see that this policy version is active.
+	s.sendHeartbeat(ctx)
 }
 
 func (s *Service) syncCommands(ctx context.Context) {
@@ -244,8 +246,9 @@ func (s *Service) sendHeartbeat(ctx context.Context) {
 	}
 	s.mu.Lock()
 	effective := s.state.Effective
+	policyVersion := s.state.Policy.Version
 	s.mu.Unlock()
-	serverTime, err := s.client.Heartbeat(ctx, effective, s.AgentHealthy())
+	serverTime, err := s.client.Heartbeat(ctx, effective, s.AgentHealthy(), policyVersion)
 	if err != nil {
 		s.logger.Printf("heartbeat failed: %v", err)
 		return

@@ -20,8 +20,8 @@ public sealed class OverlayController
             }
 
             var detail = nextAllowedAt is not null
-                ? $"Bạn có thể sử dụng máy tính lại vào lúc {nextAllowedAt.Value.LocalDateTime:t}."
-                : "Vui lòng trao đổi với người phụ trách để được sử dụng máy tính.";
+                ? $"Các Chú Tiểu có thể dùng máy lại vào lúc {nextAllowedAt.Value.LocalDateTime:t}."
+                : "Các Chú Tiểu hãy trao đổi với Sư Chú khi cần dùng máy thêm.";
             Show(detail, reason);
         });
     }
@@ -69,21 +69,39 @@ public sealed class OverlayController
         };
         panel.Children.Add(new TextBlock
         {
-            Text = "For Little",
+            Text = "🌙",
+            Foreground = new SolidColorBrush(System.Windows.Media.Color.FromRgb(255, 219, 128)),
+            FontSize = 54,
+            FontWeight = FontWeights.Bold,
+            TextAlignment = TextAlignment.Center,
+            Margin = new Thickness(0, 0, 0, 8)
+        });
+        panel.Children.Add(new TextBlock
+        {
+            Text = "FOR LITTLE",
             Foreground = new SolidColorBrush(System.Windows.Media.Color.FromRgb(177, 207, 152)),
-            FontSize = 16,
+            FontSize = 15,
             FontWeight = FontWeights.Bold,
             TextAlignment = TextAlignment.Center
         });
         panel.Children.Add(new TextBlock
         {
-            Text = "Đã hết thời gian sử dụng máy tính",
+            Text = "Đến giờ nghỉ ngơi rồi",
             Foreground = System.Windows.Media.Brushes.White,
             FontSize = 38,
             FontWeight = FontWeights.SemiBold,
             TextAlignment = TextAlignment.Center,
             Margin = new Thickness(0, 18, 0, 14),
             TextWrapping = TextWrapping.Wrap
+        });
+        panel.Children.Add(new TextBlock
+        {
+            Text = "Các Chú Tiểu hãy nghỉ ngơi, thư giãn một chút nhé.",
+            Foreground = new SolidColorBrush(System.Windows.Media.Color.FromRgb(220, 226, 218)),
+            FontSize = 20,
+            TextAlignment = TextAlignment.Center,
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0, 0, 0, 12)
         });
         panel.Children.Add(new TextBlock
         {
@@ -106,10 +124,10 @@ public sealed class OverlayController
 
     private static string ReasonLabel(string reason) => reason switch
     {
-        "outside_schedule" => "Ngoài khung giờ được phép",
-        "force_block" => "Bị chặn bởi quản trị viên",
-        "force_lock" => "Máy đã bị khóa bởi quản trị viên",
-        _ => "Thời gian sử dụng đã kết thúc"
+        "outside_schedule" => "Ngoài giờ dùng máy đã được Sư Chú sắp xếp",
+        "force_block" => "Sư Chú đang tạm dừng thời gian dùng máy",
+        "force_lock" => "Sư Chú đã khóa máy",
+        _ => "Đã đến giờ nghỉ ngơi"
     };
 
     private static class NativeMethods
