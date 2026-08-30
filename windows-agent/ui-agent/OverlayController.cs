@@ -9,6 +9,8 @@ public sealed class OverlayController
 {
     private readonly List<Window> windows = [];
 
+    public event Action? PolicyRefreshRequested;
+
     public void Apply(string state, string reason, DateTimeOffset? nextAllowedAt, DateTimeOffset? extendedUntil)
     {
         System.Windows.Application.Current.Dispatcher.Invoke(() =>
@@ -59,7 +61,7 @@ public sealed class OverlayController
         window.Show();
     }
 
-    private static UIElement CreateContent(string detail, string reason)
+    private UIElement CreateContent(string detail, string reason)
     {
         var panel = new StackPanel
         {
@@ -119,6 +121,25 @@ public sealed class OverlayController
             TextAlignment = TextAlignment.Center,
             Margin = new Thickness(0, 26, 0, 0)
         });
+        var refreshButton = new Button
+        {
+            Content = "↻ Kiểm tra lại lịch",
+            FontSize = 16,
+            FontWeight = FontWeights.SemiBold,
+            Padding = new Thickness(20, 10, 20, 10),
+            Margin = new Thickness(0, 28, 0, 0),
+            HorizontalAlignment = System.Windows.HorizontalAlignment.Center,
+            Background = new SolidColorBrush(System.Windows.Media.Color.FromRgb(177, 207, 152)),
+            Foreground = new SolidColorBrush(System.Windows.Media.Color.FromRgb(18, 36, 22)),
+            BorderThickness = new Thickness(0)
+        };
+        refreshButton.Click += (_, _) =>
+        {
+            refreshButton.IsEnabled = false;
+            refreshButton.Content = "Đang kiểm tra lịch...";
+            PolicyRefreshRequested?.Invoke();
+        };
+        panel.Children.Add(refreshButton);
         return panel;
     }
 

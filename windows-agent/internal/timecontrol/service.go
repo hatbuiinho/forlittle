@@ -25,11 +25,12 @@ type Service struct {
 	state                 PersistedState
 	lastAgentHeartbeat    time.Time
 	lastAgentStartAttempt time.Time
+	policyRefreshRequests chan struct{}
 	mu                    sync.Mutex
 }
 
 func NewService(cfg config.TimeControlConfig, publisher Publisher, logger *log.Logger) *Service {
-	return &Service{cfg: cfg, store: NewStore(cfg.DataDir), publisher: publisher, logger: logger}
+	return &Service{cfg: cfg, store: NewStore(cfg.DataDir), publisher: publisher, logger: logger, policyRefreshRequests: make(chan struct{}, 1)}
 }
 
 func (s *Service) Run(ctx context.Context) error {
@@ -82,6 +83,12 @@ func (s *Service) Run(ctx context.Context) error {
 			s.syncCommands(ctx)
 		case <-notifications:
 			s.syncCommands(ctx)
+		case <-s.policyRefreshRequests:
+			s.logger.Printf("policy refresh requested from UI agent")
+			s.syncPolicy(ctx)
+			if s.publisher != nil {
+				s.publisher.Publish(s.CurrentMessage())
+			}
 		case <-heartbeatTicker.C:
 			s.sendHeartbeat(ctx)
 		case <-agentTicker.C:
@@ -124,10 +131,14 @@ func (s *Service) syncPolicy(ctx context.Context) {
 		return
 	}
 	s.mu.Lock()
+	previousVersion := s.state.Policy.Version
 	s.state.Policy = policy
 	s.setServerTime(serverTime)
 	_ = s.saveLocked()
 	s.mu.Unlock()
+	if policy.Version != previousVersion {
+		s.logger.Printf("applied policy version %d", policy.Version)
+	}
 	s.recalculate(s.trustedNow())
 	// Report immediately so Sư Chú can see that this policy version is active.
 	s.sendHeartbeat(ctx)
@@ -260,6 +271,13 @@ func (s *Service) sendHeartbeat(ctx context.Context) {
 }
 
 func (s *Service) HandleAgentMessage(message AgentMessage) {
+	if message.Type == "REQUEST_POLICY_SYNC" {
+		select {
+		case s.policyRefreshRequests <- struct{}{}:
+		default:
+		}
+		return
+	}
 	if message.Type == "AGENT_HEARTBEAT" {
 		s.mu.Lock()
 		s.lastAgentHeartbeat = time.Now().UTC()

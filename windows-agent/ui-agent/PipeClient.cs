@@ -6,6 +6,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Runtime.InteropServices;
 using System.Security.Principal;
+using System.Threading.Channels;
 
 namespace ForLittle.TimeControl.Agent;
 
@@ -13,39 +14,56 @@ public sealed class PipeClient(OverlayController overlays, CancellationToken can
 {
     private const string PipeName = "ForLittleTimeControl";
     private static readonly TimeSpan ReconnectDelay = TimeSpan.FromSeconds(3);
+    private readonly Channel<string> refreshRequests = Channel.CreateUnbounded<string>();
+    private readonly SemaphoreSlim writeLock = new(1, 1);
 
     public async Task RunAsync()
     {
-        while (!cancellation.IsCancellationRequested)
+        overlays.PolicyRefreshRequested += RequestPolicyRefresh;
+        try
         {
-            try
+            while (!cancellation.IsCancellationRequested)
             {
-                using var pipe = new NamedPipeClientStream(".", PipeName, PipeDirection.InOut, PipeOptions.Asynchronous);
-                await pipe.ConnectAsync(5000, cancellation);
-                AgentLog.Write("connected to service pipe");
-                // A BOM is valid for files but corrupts the first JSON message
-                // sent through a line-oriented named-pipe protocol.
-                var utf8WithoutBom = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
-                using var reader = new StreamReader(pipe, utf8WithoutBom, leaveOpen: true);
-                using var writer = new StreamWriter(pipe, utf8WithoutBom, leaveOpen: true) { AutoFlush = true };
-                using var heartbeat = new PeriodicTimer(TimeSpan.FromSeconds(5));
-                using var connectionCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellation);
-                var readTask = ReadMessagesAsync(reader, connectionCancellation.Token);
-                var heartbeatTask = SendHeartbeatsAsync(writer, heartbeat, connectionCancellation.Token);
-                await Task.WhenAny(readTask, heartbeatTask);
-                connectionCancellation.Cancel();
-                try { await Task.WhenAll(readTask, heartbeatTask); } catch (OperationCanceledException) { }
+                try
+                {
+                    using var pipe = new NamedPipeClientStream(".", PipeName, PipeDirection.InOut, PipeOptions.Asynchronous);
+                    await pipe.ConnectAsync(5000, cancellation);
+                    AgentLog.Write("connected to service pipe");
+                    // A BOM is valid for files but corrupts the first JSON message
+                    // sent through a line-oriented named-pipe protocol.
+                    var utf8WithoutBom = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
+                    using var reader = new StreamReader(pipe, utf8WithoutBom, leaveOpen: true);
+                    using var writer = new StreamWriter(pipe, utf8WithoutBom, leaveOpen: true) { AutoFlush = true };
+                    using var heartbeat = new PeriodicTimer(TimeSpan.FromSeconds(5));
+                    using var connectionCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellation);
+                    var readTask = ReadMessagesAsync(reader, connectionCancellation.Token);
+                    var heartbeatTask = SendHeartbeatsAsync(writer, heartbeat, connectionCancellation.Token);
+                    var refreshTask = SendRefreshRequestsAsync(writer, connectionCancellation.Token);
+                    await Task.WhenAny(readTask, heartbeatTask, refreshTask);
+                    connectionCancellation.Cancel();
+                    try { await Task.WhenAll(readTask, heartbeatTask, refreshTask); } catch (OperationCanceledException) { }
+                }
+                catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
+                {
+                    return;
+                }
+                catch (Exception exception)
+                {
+                    AgentLog.Write($"pipe connection failed: {exception}");
+                }
+                await Task.Delay(ReconnectDelay, cancellation);
             }
-            catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
-            {
-                return;
-            }
-            catch (Exception exception)
-            {
-                AgentLog.Write($"pipe connection failed: {exception}");
-            }
-            await Task.Delay(ReconnectDelay, cancellation);
         }
+        finally
+        {
+            overlays.PolicyRefreshRequested -= RequestPolicyRefresh;
+        }
+    }
+
+    private void RequestPolicyRefresh()
+    {
+        AgentLog.Write("policy refresh requested from overlay");
+        refreshRequests.Writer.TryWrite("{\"type\":\"REQUEST_POLICY_SYNC\"}");
     }
 
     private async Task ReadMessagesAsync(StreamReader reader, CancellationToken connectionCancellation)
@@ -68,13 +86,34 @@ public sealed class PipeClient(OverlayController overlays, CancellationToken can
         var ticks = 0;
         while (await heartbeat.WaitForNextTickAsync(connectionCancellation))
         {
-            await writer.WriteLineAsync("{\"type\":\"AGENT_HEARTBEAT\"}");
+            await WriteMessageAsync(writer, "{\"type\":\"AGENT_HEARTBEAT\"}", connectionCancellation);
             ticks++;
             if (ticks % 3 == 0)
             {
                 var sample = UsageSample.Create();
-                await writer.WriteLineAsync(JsonSerializer.Serialize(sample));
+                await WriteMessageAsync(writer, JsonSerializer.Serialize(sample), connectionCancellation);
             }
+        }
+    }
+
+    private async Task SendRefreshRequestsAsync(StreamWriter writer, CancellationToken connectionCancellation)
+    {
+        await foreach (var request in refreshRequests.Reader.ReadAllAsync(connectionCancellation))
+        {
+            await WriteMessageAsync(writer, request, connectionCancellation);
+        }
+    }
+
+    private async Task WriteMessageAsync(StreamWriter writer, string message, CancellationToken cancellationToken)
+    {
+        await writeLock.WaitAsync(cancellationToken);
+        try
+        {
+            await writer.WriteLineAsync(message);
+        }
+        finally
+        {
+            writeLock.Release();
         }
     }
 
