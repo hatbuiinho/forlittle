@@ -107,6 +107,8 @@ The command creates a timestamped folder under `dist/` containing both executabl
 
 Use `deploy-time-control.ps1 -ForceReenroll` only when you intentionally need to discard the local device credential and enroll the computer again.
 
+The installer adds an all-users Start Menu shortcut at `For Little > Lich dung may cua Chu Tieu`. A Standard User can open it to view the read-only policy cache currently applied by the Windows Service. It communicates through the local named pipe and does not grant access to credentials or configuration files.
+
 To remove the service, interactive agent, installed binaries, local credentials, policy cache, and logs before a clean installation, double-click the release's `uninstall-time-control.cmd`. It requests Administrator elevation and retains the machine record on the dashboard.
 
 ## Auto Start With Scheduled Task

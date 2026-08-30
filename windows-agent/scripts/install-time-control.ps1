@@ -64,6 +64,8 @@ $installedService = Join-Path $InstallDirectory "forlittle-time-control.exe"
 $installedAgentDirectory = Join-Path $InstallDirectory "agent"
 $installedAgent = Join-Path $installedAgentDirectory "ForLittle.TimeControl.Agent.exe"
 $legacyAgent = Join-Path $InstallDirectory "ForLittle.TimeControl.Agent.exe"
+$startMenuDirectory = Join-Path ([Environment]::GetFolderPath("CommonPrograms")) "For Little"
+$scheduleShortcut = Join-Path $startMenuDirectory "Lich dung may cua Chu Tieu.lnk"
 $installedConfig = Join-Path $DataDirectory "config.json"
 
 if (Get-Service -Name $ServiceName -ErrorAction SilentlyContinue) {
@@ -83,6 +85,15 @@ $serviceConfig.agent_path = $installedAgent
 $serviceConfig.data_dir = $DataDirectory
 $configJSON = $serviceConfig | ConvertTo-Json -Depth 8
 [System.IO.File]::WriteAllText($installedConfig, $configJSON, [System.Text.UTF8Encoding]::new($false))
+
+New-Item -ItemType Directory -Path $startMenuDirectory -Force | Out-Null
+$shell = New-Object -ComObject WScript.Shell
+$shortcut = $shell.CreateShortcut($scheduleShortcut)
+$shortcut.TargetPath = $installedAgent
+$shortcut.Arguments = "--show-schedule"
+$shortcut.WorkingDirectory = $installedAgentDirectory
+$shortcut.Description = "Xem lich dung may da duoc ap dung"
+$shortcut.Save()
 
 # Program Files is protected by Windows. Restrict mutable service state so a
 # Standard User cannot replace credentials, policy cache, or command history.

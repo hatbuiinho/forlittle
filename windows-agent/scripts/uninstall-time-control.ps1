@@ -43,6 +43,9 @@ try {
     Remove-Item -LiteralPath $InstallDirectory -Recurse -Force -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath $DataDirectory -Recurse -Force -ErrorAction SilentlyContinue
 
+    $scheduleShortcut = Join-Path ([Environment]::GetFolderPath("CommonPrograms")) "For Little\Lich dung may cua Chu Tieu.lnk"
+    Remove-Item -LiteralPath $scheduleShortcut -Force -ErrorAction SilentlyContinue
+
     $userAgentData = Join-Path $env:LOCALAPPDATA "ForLittle\TimeControl"
     Remove-Item -LiteralPath $userAgentData -Recurse -Force -ErrorAction SilentlyContinue
 

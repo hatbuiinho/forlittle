@@ -59,6 +59,7 @@ type StateMessage struct {
 	Reason        string     `json:"reason"`
 	NextAllowedAt *time.Time `json:"next_allowed_at,omitempty"`
 	ExtendedUntil *time.Time `json:"extended_until,omitempty"`
+	Policy        *Policy    `json:"policy,omitempty"`
 }
 
 type AgentMessage struct {

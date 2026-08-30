@@ -77,7 +77,7 @@ public sealed class PipeClient(OverlayController overlays, CancellationToken can
             AgentLog.Write($"received {message.Type ?? "unknown"} state={message.State ?? ""}");
             if (message.Type == "FORCE_LOCK") overlays.LockWorkstation();
             else if (message.Type == "FORCE_LOGOUT") Process.Start(new ProcessStartInfo("shutdown.exe", "/l") { UseShellExecute = false });
-            else overlays.Apply(message.State ?? "BLOCKED", message.Reason ?? "policy", message.NextAllowedAt, message.ExtendedUntil);
+            else if (message.Type == "STATE_CHANGED") overlays.Apply(message.State ?? "BLOCKED", message.Reason ?? "policy", message.NextAllowedAt, message.ExtendedUntil);
         }
     }
 

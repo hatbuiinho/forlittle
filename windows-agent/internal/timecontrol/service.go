@@ -278,6 +278,12 @@ func (s *Service) HandleAgentMessage(message AgentMessage) {
 		}
 		return
 	}
+	if message.Type == "REQUEST_POLICY_SCHEDULE" {
+		if s.publisher != nil {
+			s.publisher.Publish(s.CurrentPolicyMessage())
+		}
+		return
+	}
 	if message.Type == "AGENT_HEARTBEAT" {
 		s.mu.Lock()
 		s.lastAgentHeartbeat = time.Now().UTC()
@@ -330,6 +336,14 @@ func (s *Service) CurrentMessage() StateMessage {
 	defer s.mu.Unlock()
 	effective := s.state.Effective
 	return StateMessage{Type: "STATE_CHANGED", State: effective.State, Reason: effective.Reason, NextAllowedAt: effective.NextAllowedAt, ExtendedUntil: effective.ExtendedUntil}
+}
+
+func (s *Service) CurrentPolicyMessage() StateMessage {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	effective := s.state.Effective
+	policy := s.state.Policy
+	return StateMessage{Type: "POLICY_SNAPSHOT", State: effective.State, Reason: effective.Reason, NextAllowedAt: effective.NextAllowedAt, ExtendedUntil: effective.ExtendedUntil, Policy: &policy}
 }
 
 func (s *Service) trustedNow() time.Time {

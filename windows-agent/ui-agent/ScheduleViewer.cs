@@ -1,0 +1,146 @@
+using System.IO;
+using System.IO.Pipes;
+using System.Text;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Media;
+
+namespace ForLittle.TimeControl.Agent;
+
+internal static class ScheduleViewer
+{
+    private const string PipeName = "ForLittleTimeControl";
+    private static readonly string[] Weekdays = ["Chủ nhật", "Thứ Hai", "Thứ Ba", "Thứ Tư", "Thứ Năm", "Thứ Sáu", "Thứ Bảy"];
+
+    internal static async Task<ScheduleSnapshot> LoadAsync(CancellationToken cancellation)
+    {
+        using var pipe = new NamedPipeClientStream(".", PipeName, PipeDirection.InOut, PipeOptions.Asynchronous);
+        await pipe.ConnectAsync(5000, cancellation);
+        var utf8WithoutBom = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
+        using var reader = new StreamReader(pipe, utf8WithoutBom, leaveOpen: true);
+        using var writer = new StreamWriter(pipe, utf8WithoutBom, leaveOpen: true) { AutoFlush = true };
+        await writer.WriteLineAsync("{\"type\":\"REQUEST_POLICY_SCHEDULE\"}");
+
+        while (true)
+        {
+            var line = await reader.ReadLineAsync(cancellation);
+            if (line is null) throw new IOException("service closed the schedule request");
+            var snapshot = JsonSerializer.Deserialize<ScheduleSnapshot>(line);
+            if (snapshot?.Type == "POLICY_SNAPSHOT" && snapshot.Policy is not null) return snapshot;
+        }
+    }
+
+    internal static void Show(ScheduleSnapshot snapshot, Action closeApplication)
+    {
+        var policy = snapshot.Policy!;
+        var content = new StackPanel { Margin = new Thickness(28), Width = 520 };
+        content.Children.Add(new TextBlock
+        {
+            Text = "📅 Lịch dùng máy",
+            FontSize = 28,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = new SolidColorBrush(Color.FromRgb(31, 75, 40))
+        });
+        content.Children.Add(new TextBlock
+        {
+            Text = policy.Enabled ? "Các Chú Tiểu được dùng máy trong các khung giờ sau." : "Hiện Sư Chú chưa bật lịch dùng máy.",
+            FontSize = 16,
+            Foreground = new SolidColorBrush(Color.FromRgb(70, 82, 72)),
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0, 10, 0, 4)
+        });
+        content.Children.Add(new TextBlock
+        {
+            Text = $"Múi giờ: {policy.Timezone} · Phiên bản lịch: {policy.Version}",
+            FontSize = 13,
+            Foreground = new SolidColorBrush(Color.FromRgb(98, 112, 100)),
+            Margin = new Thickness(0, 0, 0, 18)
+        });
+
+        if (policy.Enabled && policy.Schedule.Count > 0)
+        {
+            foreach (var window in policy.Schedule.OrderBy(item => item.DayOfWeek).ThenBy(item => item.StartMinutes))
+            {
+                content.Children.Add(new Border
+                {
+                    Background = new SolidColorBrush(Color.FromRgb(241, 246, 239)),
+                    CornerRadius = new CornerRadius(10),
+                    Padding = new Thickness(15, 11, 15, 11),
+                    Margin = new Thickness(0, 0, 0, 8),
+                    Child = new TextBlock
+                    {
+                        Text = $"{Weekdays[window.DayOfWeek]}   {FormatTime(window.StartMinutes)} - {FormatTime(window.EndMinutes)}",
+                        FontSize = 17,
+                        FontWeight = FontWeights.SemiBold,
+                        Foreground = new SolidColorBrush(Color.FromRgb(29, 53, 33))
+                    }
+                });
+            }
+        }
+        else if (policy.Enabled)
+        {
+            content.Children.Add(new TextBlock
+            {
+                Text = "Sư Chú chưa đặt khung giờ cụ thể.",
+                FontSize = 16,
+                Foreground = new SolidColorBrush(Color.FromRgb(120, 83, 30))
+            });
+        }
+
+        if (snapshot.NextAllowedAt is not null)
+        {
+            content.Children.Add(new TextBlock
+            {
+                Text = $"Lần dùng máy tiếp theo: {snapshot.NextAllowedAt.Value.LocalDateTime:t}",
+                FontSize = 15,
+                Foreground = new SolidColorBrush(Color.FromRgb(70, 82, 72)),
+                Margin = new Thickness(0, 18, 0, 0)
+            });
+        }
+
+        var closeButton = new Button
+        {
+            Content = "Đã hiểu",
+            Padding = new Thickness(24, 9, 24, 9),
+            Margin = new Thickness(0, 24, 0, 0),
+            HorizontalAlignment = HorizontalAlignment.Right,
+            Background = new SolidColorBrush(Color.FromRgb(43, 89, 48)),
+            Foreground = Brushes.White,
+            BorderThickness = new Thickness(0)
+        };
+        var viewer = new Window
+        {
+            Title = "Lịch dùng máy - For Little",
+            Content = content,
+            SizeToContent = SizeToContent.WidthAndHeight,
+            MinWidth = 560,
+            WindowStartupLocation = WindowStartupLocation.CenterScreen,
+            ResizeMode = ResizeMode.NoResize,
+            Background = Brushes.White
+        };
+        closeButton.Click += (_, _) => viewer.Close();
+        content.Children.Add(closeButton);
+        viewer.Closed += (_, _) => closeApplication();
+        viewer.Show();
+    }
+
+    private static string FormatTime(int minutes) => $"{minutes / 60:00}:{minutes % 60:00}";
+
+    internal sealed record ScheduleSnapshot(
+        [property: JsonPropertyName("type")] string? Type,
+        [property: JsonPropertyName("next_allowed_at")] DateTimeOffset? NextAllowedAt,
+        [property: JsonPropertyName("policy")] SchedulePolicy? Policy);
+
+    internal sealed record SchedulePolicy(
+        [property: JsonPropertyName("version")] int Version,
+        [property: JsonPropertyName("timezone")] string Timezone,
+        [property: JsonPropertyName("enabled")] bool Enabled,
+        [property: JsonPropertyName("schedule")] List<ScheduleWindow> Schedule);
+
+    internal sealed record ScheduleWindow(
+        [property: JsonPropertyName("day_of_week")] int DayOfWeek,
+        [property: JsonPropertyName("start_minutes")] int StartMinutes,
+        [property: JsonPropertyName("end_minutes")] int EndMinutes);
+}

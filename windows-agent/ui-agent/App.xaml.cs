@@ -12,6 +12,12 @@ public partial class App : System.Windows.Application
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+		if (e.Args.Contains("--show-schedule", StringComparer.OrdinalIgnoreCase))
+		{
+			ShutdownMode = System.Windows.ShutdownMode.OnExplicitShutdown;
+			_ = ShowScheduleAsync();
+			return;
+		}
         instanceMutex = new Mutex(true, @"Local\ForLittleTimeControlAgent", out var isFirstInstance);
         if (!isFirstInstance)
         {
@@ -31,6 +37,25 @@ public partial class App : System.Windows.Application
         AgentLog.Write("agent started");
         _ = new PipeClient(overlays, cancellation.Token).RunAsync();
     }
+
+	private async Task ShowScheduleAsync()
+	{
+		try
+		{
+			var snapshot = await ScheduleViewer.LoadAsync(cancellation.Token);
+			ScheduleViewer.Show(snapshot, Shutdown);
+		}
+		catch (Exception exception)
+		{
+			AgentLog.Write($"could not load schedule: {exception}");
+			System.Windows.MessageBox.Show(
+				"Chưa thể tải lịch dùng máy. Các Chú Tiểu hãy thử lại sau ít phút.",
+				"For Little",
+				System.Windows.MessageBoxButton.OK,
+				System.Windows.MessageBoxImage.Information);
+			Shutdown();
+		}
+	}
 
     protected override void OnExit(ExitEventArgs e)
     {
