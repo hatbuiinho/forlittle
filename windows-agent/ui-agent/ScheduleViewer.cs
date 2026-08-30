@@ -197,7 +197,7 @@ internal static class ScheduleViewer
         WindowStartupLocation = WindowStartupLocation.CenterScreen,
         ResizeMode = ResizeMode.NoResize,
         Background = Brushes.White
-    }
+    };
 
     private static string FormatTime(int minutes) => $"{minutes / 60:00}:{minutes % 60:00}";
 
