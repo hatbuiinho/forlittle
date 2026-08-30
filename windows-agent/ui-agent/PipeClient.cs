@@ -34,9 +34,12 @@ public sealed class PipeClient(OverlayController overlays, CancellationToken can
                     var utf8WithoutBom = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
                     using var reader = new StreamReader(pipe, utf8WithoutBom, leaveOpen: true);
                     using var writer = new StreamWriter(pipe, utf8WithoutBom, leaveOpen: true) { AutoFlush = true };
-                    using var heartbeat = new PeriodicTimer(TimeSpan.FromSeconds(5));
                     using var connectionCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellation);
                     var readTask = ReadMessagesAsync(reader, connectionCancellation.Token);
+                    // Request the current state only after this client has set up its reader.
+                    // This avoids a connect-time write race with Windows named pipes.
+                    await WriteMessageAsync(writer, "{\"type\":\"AGENT_HEARTBEAT\"}", cancellation);
+                    using var heartbeat = new PeriodicTimer(TimeSpan.FromSeconds(5));
                     var heartbeatTask = SendHeartbeatsAsync(writer, heartbeat, connectionCancellation.Token);
                     var refreshTask = SendRefreshRequestsAsync(writer, connectionCancellation.Token);
                     await Task.WhenAny(readTask, heartbeatTask, refreshTask);

@@ -310,10 +310,14 @@ func (s *Service) HandleAgentMessage(message AgentMessage) {
 // AgentResponse returns messages that must be delivered only to the pipe
 // connection that requested them, rather than broadcasting them to every UI.
 func (s *Service) AgentResponse(message AgentMessage) (StateMessage, bool) {
-	if message.Type != "REQUEST_POLICY_SCHEDULE" {
+	switch message.Type {
+	case "AGENT_HEARTBEAT":
+		return s.CurrentMessage(), true
+	case "REQUEST_POLICY_SCHEDULE":
+		return s.CurrentPolicyMessage(), true
+	default:
 		return StateMessage{}, false
 	}
-	return s.CurrentPolicyMessage(), true
 }
 
 func (s *Service) AgentHealthy() bool {

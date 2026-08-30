@@ -100,8 +100,7 @@ func runProgram(ctx context.Context, configPath string, logger *log.Logger) {
 	hub := ipc.NewHub()
 	service := timecontrol.NewService(cfg, hub, logger)
 	pipe := ipc.PipeServer{
-		Hub:     hub,
-		Initial: service.CurrentMessage,
+		Hub: hub,
 		OnAgentMessage: func(message timecontrol.AgentMessage) {
 			if message.Type == "REQUEST_POLICY_SCHEDULE" {
 				logger.Printf("schedule viewer requested current policy")

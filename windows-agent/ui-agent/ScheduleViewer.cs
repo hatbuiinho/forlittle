@@ -23,6 +23,7 @@ internal static class ScheduleViewer
         var utf8WithoutBom = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
         using var reader = new StreamReader(pipe, utf8WithoutBom, leaveOpen: true);
         using var writer = new StreamWriter(pipe, utf8WithoutBom, leaveOpen: true) { AutoFlush = true };
+        var readTask = reader.ReadLineAsync(cancellation).AsTask();
         await writer.WriteLineAsync("{\"type\":\"REQUEST_POLICY_SCHEDULE\"}");
         AgentLog.Write("requested policy schedule from service");
 
@@ -30,7 +31,6 @@ internal static class ScheduleViewer
         {
             // NamedPipeStream does not reliably interrupt a pending ReadLineAsync
             // on every Windows build, so race the read against an explicit timeout.
-            var readTask = reader.ReadLineAsync(cancellation).AsTask();
             var completed = await Task.WhenAny(readTask, Task.Delay(TimeSpan.FromSeconds(10), cancellation));
             if (completed != readTask) throw new TimeoutException("timed out waiting for the local service response");
             var line = await readTask;
@@ -41,6 +41,7 @@ internal static class ScheduleViewer
                 AgentLog.Write($"received policy schedule version={snapshot.Policy.Version}");
                 return snapshot;
             }
+            readTask = reader.ReadLineAsync(cancellation).AsTask();
         }
     }
 
