@@ -34,6 +34,21 @@ type timePolicyInput struct {
 	Schedule []timecontrol.ScheduleWindow `json:"schedule"`
 }
 
+type sharedTimePolicyInput struct {
+	Name string `json:"name" binding:"required"`
+	timePolicyInput
+}
+
+type machinePolicyAssignmentInput struct {
+	SharedPolicyID *uint `json:"shared_policy_id"`
+}
+
+type effectiveTimePolicyResponse struct {
+	Policy   models.TimePolicy           `json:"policy"`
+	Schedule []models.TimeScheduleWindow `json:"schedule"`
+	Source   string                      `json:"source"`
+}
+
 type deviceEnrollmentRequest struct {
 	MachineID             string `json:"machine_id" binding:"required"`
 	DisplayName           string `json:"display_name"`
@@ -177,13 +192,13 @@ func (h TimeControlHandler) Enroll(c *gin.Context) {
 
 func (h TimeControlHandler) GetPolicy(c *gin.Context) {
 	machineID := c.GetString("machine_id")
-	policy, windows, err := h.policyForMachine(machineID)
+	policy, windows, source, err := h.policyForMachine(machineID)
 	if err != nil {
 		internalServerError(c, "could not load time policy")
 		return
 	}
 	state := h.loadState(machineID)
-	c.JSON(http.StatusOK, gin.H{"policy": policy, "schedule": windows, "state": state, "server_time": time.Now().UTC()})
+	c.JSON(http.StatusOK, gin.H{"policy": policy, "schedule": windows, "source": source, "state": state, "server_time": time.Now().UTC()})
 }
 
 func (h TimeControlHandler) GetCommands(c *gin.Context) {
@@ -286,6 +301,236 @@ func (h TimeControlHandler) GetPolicyAdmin(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"policy": policy, "schedule": windows})
+}
+
+func (h TimeControlHandler) ListSharedPoliciesAdmin(c *gin.Context) {
+	var policies []models.TimePolicy
+	if err := h.DB.Where("scope = ?", "shared").Order("name asc, id asc").Find(&policies).Error; err != nil {
+		internalServerError(c, "could not load shared schedules")
+		return
+	}
+	items := make([]effectiveTimePolicyResponse, 0, len(policies))
+	for _, policy := range policies {
+		windows, err := h.scheduleForPolicy(policy.ID)
+		if err != nil {
+			internalServerError(c, "could not load shared schedule windows")
+			return
+		}
+		items = append(items, effectiveTimePolicyResponse{Policy: policy, Schedule: windows, Source: "shared"})
+	}
+	c.JSON(http.StatusOK, items)
+}
+
+func (h TimeControlHandler) CreateSharedPolicyAdmin(c *gin.Context) {
+	var input sharedTimePolicyInput
+	if err := c.ShouldBindJSON(&input); err != nil {
+		badRequest(c, err)
+		return
+	}
+	timezone, enabled, err := validateTimePolicyInput(input.timePolicyInput)
+	if err != nil {
+		badRequest(c, err)
+		return
+	}
+	name := strings.TrimSpace(input.Name)
+	if name == "" {
+		badRequest(c, errors.New("schedule name is required"))
+		return
+	}
+	policy := models.TimePolicy{Name: name, Scope: "shared", Timezone: timezone, Enabled: enabled, Version: 1}
+	if err := h.DB.Transaction(func(tx *gorm.DB) error { return h.replacePolicySchedule(tx, &policy, input.Schedule, true) }); err != nil {
+		internalServerError(c, "could not create shared schedule")
+		return
+	}
+	windows, _ := h.scheduleForPolicy(policy.ID)
+	c.JSON(http.StatusCreated, effectiveTimePolicyResponse{Policy: policy, Schedule: windows, Source: "shared"})
+}
+
+func (h TimeControlHandler) UpdateSharedPolicyAdmin(c *gin.Context) {
+	policyID, err := parsePositiveID(c.Param("policyId"))
+	if err != nil {
+		badRequest(c, err)
+		return
+	}
+	var input sharedTimePolicyInput
+	if err := c.ShouldBindJSON(&input); err != nil {
+		badRequest(c, err)
+		return
+	}
+	timezone, enabled, err := validateTimePolicyInput(input.timePolicyInput)
+	if err != nil {
+		badRequest(c, err)
+		return
+	}
+	name := strings.TrimSpace(input.Name)
+	if name == "" {
+		badRequest(c, errors.New("schedule name is required"))
+		return
+	}
+	var policy models.TimePolicy
+	if err := h.DB.Where("id = ? AND scope = ?", policyID, "shared").First(&policy).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "shared schedule not found"})
+			return
+		}
+		internalServerError(c, "could not load shared schedule")
+		return
+	}
+	policy.Name, policy.Timezone, policy.Enabled, policy.Version = name, timezone, enabled, policy.Version+1
+	if err := h.DB.Transaction(func(tx *gorm.DB) error { return h.replacePolicySchedule(tx, &policy, input.Schedule, false) }); err != nil {
+		internalServerError(c, "could not save shared schedule")
+		return
+	}
+	h.queuePolicyRefreshForSharedPolicy(policy.ID)
+	windows, _ := h.scheduleForPolicy(policy.ID)
+	c.JSON(http.StatusOK, effectiveTimePolicyResponse{Policy: policy, Schedule: windows, Source: "shared"})
+}
+
+func (h TimeControlHandler) DeleteSharedPolicyAdmin(c *gin.Context) {
+	policyID, err := parsePositiveID(c.Param("policyId"))
+	if err != nil {
+		badRequest(c, err)
+		return
+	}
+	var affected []models.MachineTimePolicyAssignment
+	if err := h.DB.Transaction(func(tx *gorm.DB) error {
+		var policy models.TimePolicy
+		if err := tx.Where("id = ? AND scope = ?", policyID, "shared").First(&policy).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("shared_policy_id = ?", policyID).Find(&affected).Error; err != nil {
+			return err
+		}
+		if err := tx.Model(&models.MachineTimePolicyAssignment{}).Where("shared_policy_id = ?", policyID).Update("shared_policy_id", nil).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("time_policy_id = ?", policyID).Delete(&models.TimeScheduleWindow{}).Error; err != nil {
+			return err
+		}
+		return tx.Delete(&policy).Error
+	}); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "shared schedule not found"})
+			return
+		}
+		internalServerError(c, "could not delete shared schedule")
+		return
+	}
+	for _, assignment := range affected {
+		h.queuePolicyRefreshForMachine(assignment.MachineID)
+	}
+	c.Status(http.StatusNoContent)
+}
+
+func (h TimeControlHandler) GetMachinePolicyAdmin(c *gin.Context) {
+	policy, windows, source, err := h.policyForMachine(c.Param("machineId"))
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "machine not found"})
+			return
+		}
+		internalServerError(c, "could not load machine schedule")
+		return
+	}
+	var assignment models.MachineTimePolicyAssignment
+	_ = h.DB.Where("machine_id = ?", c.Param("machineId")).First(&assignment).Error
+	c.JSON(http.StatusOK, gin.H{"policy": policy, "schedule": windows, "source": source, "assignment": assignment})
+}
+
+func (h TimeControlHandler) PutMachineSharedPolicyAdmin(c *gin.Context) {
+	machineID := strings.TrimSpace(c.Param("machineId"))
+	var input machinePolicyAssignmentInput
+	if err := c.ShouldBindJSON(&input); err != nil {
+		badRequest(c, err)
+		return
+	}
+	if err := h.ensureMachineAndSharedPolicy(machineID, input.SharedPolicyID); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "machine or shared schedule not found"})
+			return
+		}
+		internalServerError(c, "could not validate assignment")
+		return
+	}
+	assignment := models.MachineTimePolicyAssignment{MachineID: machineID}
+	if err := h.DB.Where(models.MachineTimePolicyAssignment{MachineID: machineID}).Assign(map[string]any{"shared_policy_id": input.SharedPolicyID}).FirstOrCreate(&assignment).Error; err != nil {
+		internalServerError(c, "could not assign shared schedule")
+		return
+	}
+	h.queuePolicyRefreshForMachine(machineID)
+	h.GetMachinePolicyAdmin(c)
+}
+
+func (h TimeControlHandler) PutMachineOverridePolicyAdmin(c *gin.Context) {
+	machineID := strings.TrimSpace(c.Param("machineId"))
+	var input timePolicyInput
+	if err := c.ShouldBindJSON(&input); err != nil {
+		badRequest(c, err)
+		return
+	}
+	timezone, enabled, err := validateTimePolicyInput(input)
+	if err != nil {
+		badRequest(c, err)
+		return
+	}
+	var assignment models.MachineTimePolicyAssignment
+	if err := h.DB.Where("machine_id = ?", machineID).First(&assignment).Error; err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		internalServerError(c, "could not load machine schedule")
+		return
+	}
+	if err := h.ensureMachineAndSharedPolicy(machineID, nil); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "machine not found"})
+			return
+		}
+		internalServerError(c, "could not load machine")
+		return
+	}
+	var policy models.TimePolicy
+	if assignment.OverridePolicyID != nil {
+		if err := h.DB.Where("id = ? AND scope = ?", *assignment.OverridePolicyID, "machine_override").First(&policy).Error; err != nil {
+			internalServerError(c, "could not load override schedule")
+			return
+		}
+		policy.Timezone, policy.Enabled, policy.Version = timezone, enabled, policy.Version+1
+	} else {
+		policy = models.TimePolicy{Name: "Lịch riêng: " + machineID, Scope: "machine_override", Timezone: timezone, Enabled: enabled, Version: 1}
+	}
+	if err := h.DB.Transaction(func(tx *gorm.DB) error {
+		if err := h.replacePolicySchedule(tx, &policy, input.Schedule, policy.ID == 0); err != nil {
+			return err
+		}
+		return tx.Where(models.MachineTimePolicyAssignment{MachineID: machineID}).Assign(map[string]any{"override_policy_id": policy.ID}).FirstOrCreate(&models.MachineTimePolicyAssignment{MachineID: machineID}).Error
+	}); err != nil {
+		internalServerError(c, "could not save machine override")
+		return
+	}
+	h.queuePolicyRefreshForMachine(machineID)
+	h.GetMachinePolicyAdmin(c)
+}
+
+func (h TimeControlHandler) DeleteMachineOverridePolicyAdmin(c *gin.Context) {
+	machineID := strings.TrimSpace(c.Param("machineId"))
+	var assignment models.MachineTimePolicyAssignment
+	if err := h.DB.Where("machine_id = ?", machineID).First(&assignment).Error; err != nil || assignment.OverridePolicyID == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "machine override not found"})
+		return
+	}
+	overrideID := *assignment.OverridePolicyID
+	if err := h.DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&models.MachineTimePolicyAssignment{}).Where("machine_id = ?", machineID).Update("override_policy_id", nil).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("time_policy_id = ?", overrideID).Delete(&models.TimeScheduleWindow{}).Error; err != nil {
+			return err
+		}
+		return tx.Delete(&models.TimePolicy{}, overrideID).Error
+	}); err != nil {
+		internalServerError(c, "could not remove machine override")
+		return
+	}
+	h.queuePolicyRefreshForMachine(machineID)
+	c.Status(http.StatusNoContent)
 }
 
 func (h TimeControlHandler) PutPolicyAdmin(c *gin.Context) {
@@ -518,25 +763,36 @@ func (h TimeControlHandler) GetMachineStateAdmin(c *gin.Context) {
 	c.JSON(http.StatusOK, h.loadState(machineID))
 }
 
-func (h TimeControlHandler) policyForMachine(machineID string) (models.TimePolicy, []models.TimeScheduleWindow, error) {
+func (h TimeControlHandler) policyForMachine(machineID string) (models.TimePolicy, []models.TimeScheduleWindow, string, error) {
 	var machine models.Machine
 	if err := h.DB.Where("machine_id = ?", machineID).First(&machine).Error; err != nil {
-		return models.TimePolicy{}, nil, err
+		return models.TimePolicy{}, nil, "", err
+	}
+	var assignment models.MachineTimePolicyAssignment
+	if err := h.DB.Where("machine_id = ?", machineID).First(&assignment).Error; err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		return models.TimePolicy{}, nil, "", err
+	}
+	if assignment.OverridePolicyID != nil {
+		policy, windows, err := h.policyByID(*assignment.OverridePolicyID)
+		return policy, windows, "machine_override", err
+	}
+	if assignment.SharedPolicyID != nil {
+		policy, windows, err := h.policyByID(*assignment.SharedPolicyID)
+		return policy, windows, "shared", err
 	}
 	if machine.LittleMonkID == nil {
-		return models.TimePolicy{Timezone: defaultTimezone, Version: 0, Enabled: false}, []models.TimeScheduleWindow{}, nil
+		return models.TimePolicy{Timezone: defaultTimezone, Version: 0, Enabled: false}, []models.TimeScheduleWindow{}, "none", nil
 	}
 	var policy models.TimePolicy
 	err := h.DB.Where("little_monk_id = ?", *machine.LittleMonkID).First(&policy).Error
 	if err == gorm.ErrRecordNotFound {
-		return models.TimePolicy{LittleMonkID: machine.LittleMonkID, Timezone: defaultTimezone, Version: 0, Enabled: false}, []models.TimeScheduleWindow{}, nil
+		return models.TimePolicy{LittleMonkID: machine.LittleMonkID, Timezone: defaultTimezone, Version: 0, Enabled: false}, []models.TimeScheduleWindow{}, "none", nil
 	}
 	if err != nil {
-		return models.TimePolicy{}, nil, err
+		return models.TimePolicy{}, nil, "", err
 	}
-	var windows []models.TimeScheduleWindow
-	err = h.DB.Where("time_policy_id = ?", policy.ID).Order("day_of_week asc, start_minutes asc").Find(&windows).Error
-	return policy, windows, err
+	windows, err := h.scheduleForPolicy(policy.ID)
+	return policy, windows, "little_monk", err
 }
 
 func (h TimeControlHandler) policyByLittleMonk(rawID string) (models.TimePolicy, []models.TimeScheduleWindow, error) {
@@ -552,9 +808,72 @@ func (h TimeControlHandler) policyByLittleMonk(rawID string) (models.TimePolicy,
 	if err != nil {
 		return models.TimePolicy{}, nil, err
 	}
-	var windows []models.TimeScheduleWindow
-	err = h.DB.Where("time_policy_id = ?", policy.ID).Order("day_of_week asc, start_minutes asc").Find(&windows).Error
+	windows, err := h.scheduleForPolicy(policy.ID)
 	return policy, windows, err
+}
+
+func validateTimePolicyInput(input timePolicyInput) (string, bool, error) {
+	if err := timecontrol.ValidateSchedule(input.Schedule); err != nil {
+		return "", false, err
+	}
+	timezone := strings.TrimSpace(input.Timezone)
+	if timezone == "" {
+		timezone = defaultTimezone
+	}
+	if _, err := time.LoadLocation(timezone); err != nil {
+		return "", false, errors.New("invalid timezone")
+	}
+	enabled := true
+	if input.Enabled != nil {
+		enabled = *input.Enabled
+	}
+	return timezone, enabled, nil
+}
+
+func (h TimeControlHandler) replacePolicySchedule(tx *gorm.DB, policy *models.TimePolicy, windows []timecontrol.ScheduleWindow, create bool) error {
+	if create {
+		if err := tx.Create(policy).Error; err != nil {
+			return err
+		}
+	} else if err := tx.Model(policy).Updates(map[string]any{"name": policy.Name, "timezone": policy.Timezone, "enabled": policy.Enabled, "version": policy.Version}).Error; err != nil {
+		return err
+	}
+	if err := tx.Where("time_policy_id = ?", policy.ID).Delete(&models.TimeScheduleWindow{}).Error; err != nil {
+		return err
+	}
+	for _, window := range windows {
+		if err := tx.Create(&models.TimeScheduleWindow{TimePolicyID: policy.ID, DayOfWeek: window.DayOfWeek, StartMinutes: window.StartMinutes, EndMinutes: window.EndMinutes}).Error; err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (h TimeControlHandler) policyByID(policyID uint) (models.TimePolicy, []models.TimeScheduleWindow, error) {
+	var policy models.TimePolicy
+	if err := h.DB.First(&policy, policyID).Error; err != nil {
+		return models.TimePolicy{}, nil, err
+	}
+	windows, err := h.scheduleForPolicy(policy.ID)
+	return policy, windows, err
+}
+
+func (h TimeControlHandler) scheduleForPolicy(policyID uint) ([]models.TimeScheduleWindow, error) {
+	var windows []models.TimeScheduleWindow
+	err := h.DB.Where("time_policy_id = ?", policyID).Order("day_of_week asc, start_minutes asc").Find(&windows).Error
+	return windows, err
+}
+
+func (h TimeControlHandler) ensureMachineAndSharedPolicy(machineID string, sharedPolicyID *uint) error {
+	var machine models.Machine
+	if err := h.DB.Where("machine_id = ?", machineID).First(&machine).Error; err != nil {
+		return err
+	}
+	if sharedPolicyID == nil {
+		return nil
+	}
+	var policy models.TimePolicy
+	return h.DB.Where("id = ? AND scope = ?", *sharedPolicyID, "shared").First(&policy).Error
 }
 
 func (h TimeControlHandler) loadState(machineID string) models.MachineTimeState {
@@ -571,11 +890,25 @@ func (h TimeControlHandler) queuePolicyRefresh(littleMonkID uint) {
 		return
 	}
 	for _, machine := range machines {
-		payload, _ := json.Marshal(map[string]any{"reason": "policy_updated"})
-		command := models.DeviceCommand{CommandID: newCommandID(), MachineID: machine.MachineID, Type: "REFRESH_POLICY", PayloadJSON: string(payload), Status: "PENDING"}
-		if h.DB.Create(&command).Error == nil {
-			h.notifyCommand(machine.MachineID, command.CommandID)
-		}
+		h.queuePolicyRefreshForMachine(machine.MachineID)
+	}
+}
+
+func (h TimeControlHandler) queuePolicyRefreshForSharedPolicy(policyID uint) {
+	var assignments []models.MachineTimePolicyAssignment
+	if h.DB.Where("shared_policy_id = ?", policyID).Find(&assignments).Error != nil {
+		return
+	}
+	for _, assignment := range assignments {
+		h.queuePolicyRefreshForMachine(assignment.MachineID)
+	}
+}
+
+func (h TimeControlHandler) queuePolicyRefreshForMachine(machineID string) {
+	payload, _ := json.Marshal(map[string]any{"reason": "policy_updated"})
+	command := models.DeviceCommand{CommandID: newCommandID(), MachineID: machineID, Type: "REFRESH_POLICY", PayloadJSON: string(payload), Status: "PENDING"}
+	if h.DB.Create(&command).Error == nil {
+		h.notifyCommand(machineID, command.CommandID)
 	}
 }
 

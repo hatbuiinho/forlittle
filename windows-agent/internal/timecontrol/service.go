@@ -311,7 +311,7 @@ func (s *Service) HandleAgentMessage(message AgentMessage) {
 // connection that requested them, rather than broadcasting them to every UI.
 func (s *Service) AgentResponse(message AgentMessage) (StateMessage, bool) {
 	switch message.Type {
-	case "AGENT_HEARTBEAT":
+	case "REQUEST_CURRENT_STATE":
 		return s.CurrentMessage(), true
 	case "REQUEST_POLICY_SCHEDULE":
 		return s.CurrentPolicyMessage(), true

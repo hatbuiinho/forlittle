@@ -38,7 +38,7 @@ public sealed class PipeClient(OverlayController overlays, CancellationToken can
                     var readTask = ReadMessagesAsync(reader, connectionCancellation.Token);
                     // Request the current state only after this client has set up its reader.
                     // This avoids a connect-time write race with Windows named pipes.
-                    await WriteMessageAsync(writer, "{\"type\":\"AGENT_HEARTBEAT\"}", cancellation);
+                    await WriteMessageAsync(writer, "{\"type\":\"REQUEST_CURRENT_STATE\"}", cancellation);
                     using var heartbeat = new PeriodicTimer(TimeSpan.FromSeconds(5));
                     var heartbeatTask = SendHeartbeatsAsync(writer, heartbeat, connectionCancellation.Token);
                     var refreshTask = SendRefreshRequestsAsync(writer, connectionCancellation.Token);

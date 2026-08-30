@@ -26,6 +26,7 @@ func AutoMigrate(database *gorm.DB) error {
 		&models.VisitLog{},
 		&models.DeviceClient{},
 		&models.TimePolicy{},
+		&models.MachineTimePolicyAssignment{},
 		&models.TimeScheduleWindow{},
 		&models.MachineTimeState{},
 		&models.DeviceCommand{},

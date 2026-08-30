@@ -101,11 +101,24 @@ type DeviceClient struct {
 type TimePolicy struct {
 	ID           uint      `gorm:"primaryKey" json:"id"`
 	LittleMonkID *uint     `gorm:"uniqueIndex" json:"little_monk_id"`
+	Name         string    `gorm:"size:255" json:"name"`
+	Scope        string    `gorm:"size:30;not null;default:little_monk" json:"scope"`
 	Timezone     string    `gorm:"size:100;not null" json:"timezone"`
 	Version      int       `gorm:"not null;default:1" json:"version"`
 	Enabled      bool      `gorm:"not null;default:false" json:"enabled"`
 	CreatedAt    time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"`
+}
+
+// MachineTimePolicyAssignment selects a reusable shared policy and/or a full
+// machine override. The override always takes precedence over the shared one.
+type MachineTimePolicyAssignment struct {
+	ID               uint      `gorm:"primaryKey" json:"id"`
+	MachineID        string    `gorm:"uniqueIndex;size:120;not null" json:"machine_id"`
+	SharedPolicyID   *uint     `gorm:"index" json:"shared_policy_id"`
+	OverridePolicyID *uint     `gorm:"index" json:"override_policy_id"`
+	CreatedAt        time.Time `json:"created_at"`
+	UpdatedAt        time.Time `json:"updated_at"`
 }
 
 type TimeScheduleWindow struct {
