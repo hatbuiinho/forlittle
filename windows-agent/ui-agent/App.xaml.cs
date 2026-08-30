@@ -15,6 +15,7 @@ public partial class App : System.Windows.Application
 		if (e.Args.Contains("--show-schedule", StringComparer.OrdinalIgnoreCase))
 		{
 			ShutdownMode = System.Windows.ShutdownMode.OnExplicitShutdown;
+			AgentLog.Write("schedule viewer requested");
 			_ = ShowScheduleAsync();
 			return;
 		}
@@ -40,20 +41,16 @@ public partial class App : System.Windows.Application
 
 	private async Task ShowScheduleAsync()
 	{
+		var viewer = ScheduleViewer.ShowLoading(Shutdown);
 		try
 		{
 			var snapshot = await ScheduleViewer.LoadAsync(cancellation.Token);
-			ScheduleViewer.Show(snapshot, Shutdown);
+			ScheduleViewer.Show(viewer, snapshot);
 		}
 		catch (Exception exception)
 		{
 			AgentLog.Write($"could not load schedule: {exception}");
-			System.Windows.MessageBox.Show(
-				"Chưa thể tải lịch dùng máy. Các Chú Tiểu hãy thử lại sau ít phút.",
-				"For Little",
-				System.Windows.MessageBoxButton.OK,
-				System.Windows.MessageBoxImage.Information);
-			Shutdown();
+			ScheduleViewer.ShowError(viewer);
 		}
 	}
 
