@@ -224,6 +224,21 @@ type extensionUserResponse struct {
 	ProfileCount int64      `json:"profile_count"`
 }
 
+const serviceOfflineAfter = 90 * time.Second
+
+type serviceMachineResponse struct {
+	models.Machine
+	ConnectionStatus string `json:"connection_status"`
+}
+
+func serviceMachineResponseFor(machine models.Machine, now time.Time) serviceMachineResponse {
+	connectionStatus := "offline"
+	if machine.LastSeenAt != nil && now.Sub(*machine.LastSeenAt) <= serviceOfflineAfter {
+		connectionStatus = "online"
+	}
+	return serviceMachineResponse{Machine: machine, ConnectionStatus: connectionStatus}
+}
+
 func (h AdminHandler) ListServiceMachines(c *gin.Context) {
 	var machines []models.Machine
 	if err := h.DB.Joins("JOIN device_clients ON device_clients.machine_id = machines.machine_id").
@@ -232,7 +247,12 @@ func (h AdminHandler) ListServiceMachines(c *gin.Context) {
 		internalServerError(c, "could not list service machines")
 		return
 	}
-	c.JSON(http.StatusOK, machines)
+	now := time.Now().UTC()
+	items := make([]serviceMachineResponse, 0, len(machines))
+	for _, machine := range machines {
+		items = append(items, serviceMachineResponseFor(machine, now))
+	}
+	c.JSON(http.StatusOK, items)
 }
 
 func (h AdminHandler) ListExtensionUsers(c *gin.Context) {

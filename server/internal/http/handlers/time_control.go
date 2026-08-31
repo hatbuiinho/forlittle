@@ -315,7 +315,12 @@ func (h TimeControlHandler) ListManagedMachinesAdmin(c *gin.Context) {
 		internalServerError(c, "could not load Windows Time Control machines")
 		return
 	}
-	c.JSON(http.StatusOK, machines)
+	now := time.Now().UTC()
+	items := make([]serviceMachineResponse, 0, len(machines))
+	for _, machine := range machines {
+		items = append(items, serviceMachineResponseFor(machine, now))
+	}
+	c.JSON(http.StatusOK, items)
 }
 
 func (h TimeControlHandler) ListSharedPoliciesAdmin(c *gin.Context) {
