@@ -20,13 +20,13 @@ func AgentAuth(database *gorm.DB) gin.HandlerFunc {
 			return
 		}
 
-		var machine models.Machine
-		if err := database.Where("device_token_hash = ?", services.HashToken(token)).First(&machine).Error; err != nil {
+		var client models.ExtensionClient
+		if err := database.Where("token_hash = ? AND status IN ?", services.HashToken(token), []string{"active", "pending"}).First(&client).Error; err != nil {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid device token"})
 			return
 		}
 
-		c.Set("machine_id", machine.MachineID)
+		c.Set("machine_id", client.MachineID)
 		c.Next()
 	}
 }

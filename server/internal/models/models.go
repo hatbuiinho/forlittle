@@ -56,6 +56,20 @@ type BrowserProfile struct {
 	LastSeenAt        time.Time `json:"last_seen_at"`
 }
 
+// ExtensionClient stores Chrome Extension-specific identity and lifecycle state.
+// A physical computer can also run Windows Time Control, so this must not share
+// mutable display/status fields with Machine or DeviceClient.
+type ExtensionClient struct {
+	ID          uint       `gorm:"primaryKey" json:"id"`
+	MachineID   string     `gorm:"uniqueIndex;size:120;not null" json:"machine_id"`
+	DisplayName string     `gorm:"size:255;not null" json:"display_name"`
+	Status      string     `gorm:"size:50;not null;default:pending" json:"status"`
+	TokenHash   string     `gorm:"size:255;not null" json:"-"`
+	LastSeenAt  *time.Time `json:"last_seen_at"`
+	CreatedAt   time.Time  `json:"created_at"`
+	UpdatedAt   time.Time  `json:"updated_at"`
+}
+
 type PolicyRule struct {
 	ID           uint      `gorm:"primaryKey" json:"id"`
 	LittleMonkID *uint     `gorm:"index" json:"little_monk_id"`

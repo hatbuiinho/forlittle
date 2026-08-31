@@ -182,13 +182,10 @@ func (h AdminHandler) CreateLittleMonk(c *gin.Context) {
 }
 
 func (h AdminHandler) ListMachines(c *gin.Context) {
-	var items []models.Machine
-	if err := h.DB.Order("id asc").Find(&items).Error; err != nil {
-		internalServerError(c, "could not list machines")
-		return
-	}
-
-	c.JSON(http.StatusOK, items)
+	// Compatibility for older dashboard builds. The generic machine list used
+	// to expose Chrome Extension identities because both clients shared Machine.
+	// It now has the same strict meaning as the Machines screen: Windows Service.
+	h.ListServiceMachines(c)
 }
 
 func (h AdminHandler) AssignMachine(c *gin.Context) {
@@ -212,6 +209,218 @@ func (h AdminHandler) AssignMachine(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"ok": true})
+}
+
+type machineUpdateInput struct {
+	DisplayName string `json:"display_name" binding:"required"`
+}
+
+type extensionUserResponse struct {
+	MachineID    string     `json:"machine_id"`
+	DisplayName  string     `json:"display_name"`
+	Status       string     `json:"status"`
+	LastSeenAt   *time.Time `json:"last_seen_at"`
+	CreatedAt    time.Time  `json:"created_at"`
+	ProfileCount int64      `json:"profile_count"`
+}
+
+func (h AdminHandler) ListServiceMachines(c *gin.Context) {
+	var machines []models.Machine
+	if err := h.DB.Joins("JOIN device_clients ON device_clients.machine_id = machines.machine_id").
+		Where("device_clients.client_type = ?", "windows_service").
+		Order("machines.display_name asc, machines.machine_id asc").Find(&machines).Error; err != nil {
+		internalServerError(c, "could not list service machines")
+		return
+	}
+	c.JSON(http.StatusOK, machines)
+}
+
+func (h AdminHandler) ListExtensionUsers(c *gin.Context) {
+	var items []extensionUserResponse
+	if err := h.DB.Table("extension_clients").
+		Select("extension_clients.machine_id, extension_clients.display_name, extension_clients.status, extension_clients.last_seen_at, extension_clients.created_at, COUNT(browser_profiles.id) AS profile_count").
+		Joins("JOIN browser_profiles ON browser_profiles.machine_id = extension_clients.machine_id").
+		Group("extension_clients.id, extension_clients.machine_id, extension_clients.display_name, extension_clients.status, extension_clients.last_seen_at, extension_clients.created_at").
+		Order("extension_clients.display_name asc, extension_clients.machine_id asc").Scan(&items).Error; err != nil {
+		internalServerError(c, "could not list Chrome Extension users")
+		return
+	}
+	c.JSON(http.StatusOK, items)
+}
+
+func (h AdminHandler) UpdateServiceMachine(c *gin.Context) {
+	h.updateManagedMachine(c, "windows_service")
+}
+func (h AdminHandler) UpdateExtensionUser(c *gin.Context) {
+	h.updateManagedMachine(c, "chrome_extension")
+}
+
+func (h AdminHandler) updateManagedMachine(c *gin.Context, source string) {
+	var input machineUpdateInput
+	if err := c.ShouldBindJSON(&input); err != nil {
+		badRequest(c, err)
+		return
+	}
+	name := strings.TrimSpace(input.DisplayName)
+	if name == "" {
+		badRequest(c, errors.New("display_name is required"))
+		return
+	}
+	if err := h.requireManagedMachine(c.Param("machineId"), source); err != nil {
+		h.managedMachineError(c, err)
+		return
+	}
+	model := any(&models.Machine{})
+	if source == "chrome_extension" {
+		model = &models.ExtensionClient{}
+	}
+	if err := h.DB.Model(model).Where("machine_id = ?", c.Param("machineId")).Update("display_name", name).Error; err != nil {
+		internalServerError(c, "could not update machine")
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true})
+}
+
+func (h AdminHandler) DeactivateServiceMachine(c *gin.Context) {
+	h.setManagedMachineActive(c, "windows_service", false)
+}
+func (h AdminHandler) ReactivateServiceMachine(c *gin.Context) {
+	h.setManagedMachineActive(c, "windows_service", true)
+}
+func (h AdminHandler) DeactivateExtensionUser(c *gin.Context) {
+	h.setManagedMachineActive(c, "chrome_extension", false)
+}
+func (h AdminHandler) ReactivateExtensionUser(c *gin.Context) {
+	h.setManagedMachineActive(c, "chrome_extension", true)
+}
+
+func (h AdminHandler) setManagedMachineActive(c *gin.Context, source string, active bool) {
+	machineID := c.Param("machineId")
+	if err := h.requireManagedMachine(machineID, source); err != nil {
+		h.managedMachineError(c, err)
+		return
+	}
+	status := "deactivated"
+	if active {
+		status = "active"
+	}
+	now := time.Now().UTC()
+	if err := h.DB.Transaction(func(tx *gorm.DB) error {
+		if source == "windows_service" {
+			if err := tx.Model(&models.Machine{}).Where("machine_id = ?", machineID).Update("status", status).Error; err != nil {
+				return err
+			}
+			updates := map[string]any{"revoked_at": &now}
+			if active {
+				updates["revoked_at"] = nil
+			}
+			return tx.Model(&models.DeviceClient{}).Where("machine_id = ? AND client_type = ?", machineID, "windows_service").Updates(updates).Error
+		}
+		return tx.Model(&models.ExtensionClient{}).Where("machine_id = ?", machineID).Update("status", status).Error
+	}); err != nil {
+		internalServerError(c, "could not change machine status")
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true, "status": status})
+}
+
+func (h AdminHandler) DeleteServiceMachine(c *gin.Context) {
+	h.deleteManagedMachine(c, "windows_service")
+}
+func (h AdminHandler) DeleteExtensionUser(c *gin.Context) {
+	h.deleteManagedMachine(c, "chrome_extension")
+}
+
+func (h AdminHandler) deleteManagedMachine(c *gin.Context, source string) {
+	machineID := c.Param("machineId")
+	if err := h.requireManagedMachine(machineID, source); err != nil {
+		h.managedMachineError(c, err)
+		return
+	}
+	if err := h.DB.Transaction(func(tx *gorm.DB) error {
+		if source == "windows_service" {
+			var assignment models.MachineTimePolicyAssignment
+			if err := tx.Where("machine_id = ?", machineID).First(&assignment).Error; err == nil {
+				if assignment.OverridePolicyID != nil {
+					if err := tx.Where("time_policy_id = ?", *assignment.OverridePolicyID).Delete(&models.TimeScheduleWindow{}).Error; err != nil {
+						return err
+					}
+					if err := tx.Delete(&models.TimePolicy{}, *assignment.OverridePolicyID).Error; err != nil {
+						return err
+					}
+				}
+				if err := tx.Delete(&assignment).Error; err != nil {
+					return err
+				}
+			}
+			if err := tx.Where("machine_id = ?", machineID).Delete(&models.DeviceClient{}).Error; err != nil {
+				return err
+			}
+			if err := tx.Where("machine_id = ?", machineID).Delete(&models.MachineTimeState{}).Error; err != nil {
+				return err
+			}
+			if err := tx.Where("machine_id = ?", machineID).Delete(&models.AppUsage{}).Error; err != nil {
+				return err
+			}
+			if err := tx.Where("machine_id = ?", machineID).Delete(&models.DeviceCommand{}).Error; err != nil {
+				return err
+			}
+			var extensionCount int64
+			if err := tx.Model(&models.ExtensionClient{}).Where("machine_id = ?", machineID).Count(&extensionCount).Error; err != nil {
+				return err
+			}
+			if extensionCount > 0 {
+				return nil
+			}
+		} else {
+			if err := tx.Where("machine_id = ?", machineID).Delete(&models.BrowserProfile{}).Error; err != nil {
+				return err
+			}
+			if err := tx.Where("machine_id = ?", machineID).Delete(&models.VisitLog{}).Error; err != nil {
+				return err
+			}
+			if err := tx.Where("machine_id = ?", machineID).Delete(&models.ExtensionClient{}).Error; err != nil {
+				return err
+			}
+			var serviceCount int64
+			if err := tx.Model(&models.DeviceClient{}).Where("machine_id = ? AND client_type = ?", machineID, "windows_service").Count(&serviceCount).Error; err != nil {
+				return err
+			}
+			if serviceCount > 0 {
+				return nil
+			}
+		}
+		return tx.Where("machine_id = ?", machineID).Delete(&models.Machine{}).Error
+	}); err != nil {
+		internalServerErrorWithCause(c, "could not delete machine", err)
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
+func (h AdminHandler) requireManagedMachine(machineID, source string) error {
+	var count int64
+	query := h.DB.Model(&models.Machine{}).Where("machines.machine_id = ?", machineID)
+	if source == "windows_service" {
+		query = query.Joins("JOIN device_clients ON device_clients.machine_id = machines.machine_id").Where("device_clients.client_type = ?", "windows_service")
+	} else {
+		query = query.Joins("JOIN extension_clients ON extension_clients.machine_id = machines.machine_id")
+	}
+	if err := query.Count(&count).Error; err != nil {
+		return err
+	}
+	if count == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
+}
+
+func (h AdminHandler) managedMachineError(c *gin.Context, err error) {
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "machine not found"})
+		return
+	}
+	internalServerErrorWithCause(c, "could not validate machine", err)
 }
 
 func (h AdminHandler) ListRules(c *gin.Context) {

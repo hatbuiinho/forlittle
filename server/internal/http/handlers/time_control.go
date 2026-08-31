@@ -162,10 +162,11 @@ func (h TimeControlHandler) Enroll(c *gin.Context) {
 				return errMachineAssignedToAnotherLittleMonk
 			}
 			if err := tx.Model(&machine).Updates(map[string]any{
-				"display_name":   displayName,
-				"little_monk_id": littleMonk.ID,
-				"status":         "active",
-				"last_seen_at":   now,
+				"display_name":      displayName,
+				"little_monk_id":    littleMonk.ID,
+				"status":            "active",
+				"device_token_hash": "managed-by-device-client",
+				"last_seen_at":      now,
 			}).Error; err != nil {
 				return err
 			}

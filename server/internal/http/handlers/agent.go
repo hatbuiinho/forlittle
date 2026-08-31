@@ -55,74 +55,57 @@ func (h AgentHandler) Register(c *gin.Context) {
 	}
 
 	now := time.Now().UTC()
-	var machine models.Machine
-	err := h.DB.Where("machine_id = ?", input.MachineID).First(&machine).Error
-	if err != nil && err != gorm.ErrRecordNotFound {
-		internalServerError(c, "could not register machine")
-		return
-	}
-
 	var token string
 	displayName := input.DisplayName
 	if displayName == "" {
 		displayName = input.MachineID
 	}
-
-	if err == gorm.ErrRecordNotFound {
-		token, err = services.NewOpaqueToken()
-		if err != nil {
-			internalServerError(c, "could not create device token")
-			return
-		}
-
-		machine = models.Machine{
-			MachineID:       input.MachineID,
-			DisplayName:     displayName,
-			Status:          "pending",
-			DeviceTokenHash: services.HashToken(token),
-			LastSeenAt:      &now,
-		}
-
-		if err := h.DB.Create(&machine).Error; err != nil {
-			internalServerError(c, "could not register machine")
-			return
-		}
-	} else {
-		token, err = services.NewOpaqueToken()
-		if err != nil {
-			internalServerError(c, "could not create device token")
-			return
-		}
-
-		updates := map[string]any{
-			"last_seen_at":      now,
-			"device_token_hash": services.HashToken(token),
-			"display_name":      displayName,
-		}
-
-		if err := h.DB.Model(&machine).Updates(updates).Error; err != nil {
-			internalServerError(c, "could not update machine")
-			return
-		}
+	token, err := services.NewOpaqueToken()
+	if err != nil {
+		internalServerError(c, "could not create device token")
+		return
 	}
 
-	profile := models.BrowserProfile{
-		MachineID:         input.MachineID,
-		ProfileInstanceID: input.ProfileInstanceID,
-		FirstSeenAt:       now,
-		LastSeenAt:        now,
-	}
+	client := models.ExtensionClient{}
+	if err := h.DB.Transaction(func(tx *gorm.DB) error {
+		var machine models.Machine
+		err := tx.Where("machine_id = ?", input.MachineID).First(&machine).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			machine = models.Machine{
+				MachineID:       input.MachineID,
+				DisplayName:     displayName,
+				Status:          "pending",
+				DeviceTokenHash: "managed-by-extension-client",
+				LastSeenAt:      &now,
+			}
+			if err := tx.Create(&machine).Error; err != nil {
+				return err
+			}
+		} else if err != nil {
+			return err
+		}
 
-	if err := h.DB.Where(models.BrowserProfile{ProfileInstanceID: input.ProfileInstanceID}).Assign(models.BrowserProfile{
-		MachineID:  input.MachineID,
-		LastSeenAt: now,
-	}).FirstOrCreate(&profile).Error; err != nil {
-		internalServerError(c, "could not register profile")
+		client = models.ExtensionClient{MachineID: input.MachineID}
+		if err := tx.Where("machine_id = ?", input.MachineID).Assign(models.ExtensionClient{
+			DisplayName: displayName,
+			Status:      "active",
+			TokenHash:   services.HashToken(token),
+			LastSeenAt:  &now,
+		}).FirstOrCreate(&client).Error; err != nil {
+			return err
+		}
+
+		profile := models.BrowserProfile{MachineID: input.MachineID, ProfileInstanceID: input.ProfileInstanceID, FirstSeenAt: now, LastSeenAt: now}
+		return tx.Where(models.BrowserProfile{ProfileInstanceID: input.ProfileInstanceID}).Assign(models.BrowserProfile{
+			MachineID: input.MachineID, LastSeenAt: now,
+		}).FirstOrCreate(&profile).Error
+	}); err != nil {
+		internalServerErrorWithCause(c, "could not register Chrome Extension", err)
 		return
 	}
 
 	response := gin.H{
-		"machine_status": machine.Status,
+		"machine_status": client.Status,
 		"device_token":   token,
 	}
 
@@ -139,8 +122,8 @@ func (h AgentHandler) Heartbeat(c *gin.Context) {
 	machineID := c.GetString("machine_id")
 	now := time.Now().UTC()
 
-	if err := h.DB.Model(&models.Machine{}).Where("machine_id = ?", machineID).Update("last_seen_at", now).Error; err != nil {
-		internalServerError(c, "could not update machine heartbeat")
+	if err := h.DB.Model(&models.ExtensionClient{}).Where("machine_id = ?", machineID).Update("last_seen_at", now).Error; err != nil {
+		internalServerErrorWithCause(c, "could not update Chrome Extension heartbeat", err)
 		return
 	}
 
