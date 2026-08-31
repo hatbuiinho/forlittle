@@ -65,6 +65,7 @@ type StateMessage struct {
 
 type AgentMessage struct {
 	Type          string `json:"type"`
+	SessionID     uint32 `json:"session_id"`
 	WindowsUser   string `json:"windows_user"`
 	Application   string `json:"application"`
 	ActiveSeconds int64  `json:"active_seconds"`

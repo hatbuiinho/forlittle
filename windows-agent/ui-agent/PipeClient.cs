@@ -16,6 +16,7 @@ public sealed class PipeClient(OverlayController overlays, CancellationToken can
     private static readonly TimeSpan ReconnectDelay = TimeSpan.FromSeconds(3);
     private readonly Channel<string> refreshRequests = Channel.CreateUnbounded<string>();
     private readonly SemaphoreSlim writeLock = new(1, 1);
+	private static readonly int SessionID = Process.GetCurrentProcess().SessionId;
 
     public async Task RunAsync()
     {
@@ -38,7 +39,7 @@ public sealed class PipeClient(OverlayController overlays, CancellationToken can
                     var readTask = ReadMessagesAsync(reader, connectionCancellation.Token);
                     // Request the current state only after this client has set up its reader.
                     // This avoids a connect-time write race with Windows named pipes.
-                    await WriteMessageAsync(writer, "{\"type\":\"REQUEST_CURRENT_STATE\"}", cancellation);
+			await WriteMessageAsync(writer, $"{{\"type\":\"REQUEST_CURRENT_STATE\",\"session_id\":{SessionID}}}", cancellation);
                     using var heartbeat = new PeriodicTimer(TimeSpan.FromSeconds(5));
                     var heartbeatTask = SendHeartbeatsAsync(writer, heartbeat, connectionCancellation.Token);
                     var refreshTask = SendRefreshRequestsAsync(writer, connectionCancellation.Token);
@@ -66,7 +67,7 @@ public sealed class PipeClient(OverlayController overlays, CancellationToken can
     private void RequestPolicyRefresh()
     {
         AgentLog.Write("policy refresh requested from overlay");
-        refreshRequests.Writer.TryWrite("{\"type\":\"REQUEST_POLICY_SYNC\"}");
+		refreshRequests.Writer.TryWrite($"{{\"type\":\"REQUEST_POLICY_SYNC\",\"session_id\":{SessionID}}}");
     }
 
     private async Task ReadMessagesAsync(StreamReader reader, CancellationToken connectionCancellation)
@@ -89,7 +90,7 @@ public sealed class PipeClient(OverlayController overlays, CancellationToken can
         var ticks = 0;
         while (await heartbeat.WaitForNextTickAsync(connectionCancellation))
         {
-            await WriteMessageAsync(writer, "{\"type\":\"AGENT_HEARTBEAT\"}", connectionCancellation);
+			await WriteMessageAsync(writer, $"{{\"type\":\"AGENT_HEARTBEAT\",\"session_id\":{SessionID}}}", connectionCancellation);
             ticks++;
             if (ticks % 3 == 0)
             {

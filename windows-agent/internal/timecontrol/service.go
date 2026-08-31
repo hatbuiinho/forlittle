@@ -17,16 +17,18 @@ type Publisher interface{ Publish(StateMessage) }
 const enrollmentVersion = 2
 
 type Service struct {
-	cfg                   config.TimeControlConfig
-	store                 *Store
-	client                *Client
-	publisher             Publisher
-	logger                *log.Logger
-	state                 PersistedState
-	lastAgentHeartbeat    time.Time
-	lastAgentStartAttempt time.Time
-	policyRefreshRequests chan struct{}
-	mu                    sync.Mutex
+	cfg                     config.TimeControlConfig
+	store                   *Store
+	client                  *Client
+	publisher               Publisher
+	logger                  *log.Logger
+	state                   PersistedState
+	lastAgentHeartbeat      time.Time
+	lastAgentSessionID      uint32
+	lastAgentStartAttempt   time.Time
+	lastAgentStartSessionID uint32
+	policyRefreshRequests   chan struct{}
+	mu                      sync.Mutex
 }
 
 func NewService(cfg config.TimeControlConfig, publisher Publisher, logger *log.Logger) *Service {
@@ -61,7 +63,7 @@ func (s *Service) Run(ctx context.Context) error {
 	commandTicker := time.NewTicker(time.Duration(s.cfg.CommandPollSeconds) * time.Second)
 	heartbeatTicker := time.NewTicker(time.Duration(s.cfg.HeartbeatSeconds) * time.Second)
 	evaluateTicker := time.NewTicker(15 * time.Second)
-	agentTicker := time.NewTicker(15 * time.Second)
+	agentTicker := time.NewTicker(5 * time.Second)
 	usageTicker := time.NewTicker(time.Minute)
 	defer policyTicker.Stop()
 	defer commandTicker.Stop()
@@ -100,21 +102,28 @@ func (s *Service) Run(ctx context.Context) error {
 }
 
 func (s *Service) ensureAgent(ctx context.Context) {
+	sessionID, err := activeInteractiveSessionID()
+	if err != nil {
+		s.logger.Printf("could not determine active session: %v", err)
+		return
+	}
 	s.mu.Lock()
-	healthy := !s.lastAgentHeartbeat.IsZero() && time.Since(s.lastAgentHeartbeat) < 15*time.Second
-	tooSoon := !s.lastAgentStartAttempt.IsZero() && time.Since(s.lastAgentStartAttempt) < 30*time.Second
+	healthy := !s.lastAgentHeartbeat.IsZero() && time.Since(s.lastAgentHeartbeat) < 15*time.Second && s.lastAgentSessionID == sessionID
+	tooSoon := !s.lastAgentStartAttempt.IsZero() && time.Since(s.lastAgentStartAttempt) < 10*time.Second && s.lastAgentStartSessionID == sessionID
 	if !healthy && !tooSoon {
 		s.lastAgentStartAttempt = time.Now().UTC()
+		s.lastAgentStartSessionID = sessionID
 	}
 	s.mu.Unlock()
 	if healthy || tooSoon {
 		return
 	}
-	if err := restartAgent(ctx, s.cfg.AgentPath); err != nil {
+	startedSessionID, err := restartAgent(ctx, s.cfg.AgentPath)
+	if err != nil {
 		s.logger.Printf("agent restart request failed: %v", err)
 		return
 	}
-	s.logger.Printf("started UI agent %q", s.cfg.AgentPath)
+	s.logger.Printf("started UI agent %q in session %d", s.cfg.AgentPath, startedSessionID)
 }
 
 func credentialsFromToken(token string) credentials {
@@ -286,8 +295,13 @@ func (s *Service) HandleAgentMessage(message AgentMessage) {
 		return
 	}
 	if message.Type == "AGENT_HEARTBEAT" {
+		activeSessionID, err := activeInteractiveSessionID()
+		if err != nil || message.SessionID != activeSessionID {
+			return
+		}
 		s.mu.Lock()
 		s.lastAgentHeartbeat = time.Now().UTC()
+		s.lastAgentSessionID = message.SessionID
 		s.mu.Unlock()
 		return
 	}
