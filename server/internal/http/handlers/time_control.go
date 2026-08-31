@@ -303,6 +303,20 @@ func (h TimeControlHandler) GetPolicyAdmin(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"policy": policy, "schedule": windows})
 }
 
+// ListManagedMachinesAdmin returns only computers enrolled by the Windows Time Control service.
+// Browser-extension machines and Little Monk records are deliberately excluded.
+func (h TimeControlHandler) ListManagedMachinesAdmin(c *gin.Context) {
+	var machines []models.Machine
+	err := h.DB.Joins("JOIN device_clients ON device_clients.machine_id = machines.machine_id").
+		Where("device_clients.client_type = ? AND device_clients.revoked_at IS NULL", "windows_service").
+		Order("machines.display_name asc, machines.machine_id asc").Find(&machines).Error
+	if err != nil {
+		internalServerError(c, "could not load Windows Time Control machines")
+		return
+	}
+	c.JSON(http.StatusOK, machines)
+}
+
 func (h TimeControlHandler) ListSharedPoliciesAdmin(c *gin.Context) {
 	var policies []models.TimePolicy
 	if err := h.DB.Where("scope = ?", "shared").Order("name asc, id asc").Find(&policies).Error; err != nil {
@@ -780,19 +794,7 @@ func (h TimeControlHandler) policyForMachine(machineID string) (models.TimePolic
 		policy, windows, err := h.policyByID(*assignment.SharedPolicyID)
 		return policy, windows, "shared", err
 	}
-	if machine.LittleMonkID == nil {
-		return models.TimePolicy{Timezone: defaultTimezone, Version: 0, Enabled: false}, []models.TimeScheduleWindow{}, "none", nil
-	}
-	var policy models.TimePolicy
-	err := h.DB.Where("little_monk_id = ?", *machine.LittleMonkID).First(&policy).Error
-	if err == gorm.ErrRecordNotFound {
-		return models.TimePolicy{LittleMonkID: machine.LittleMonkID, Timezone: defaultTimezone, Version: 0, Enabled: false}, []models.TimeScheduleWindow{}, "none", nil
-	}
-	if err != nil {
-		return models.TimePolicy{}, nil, "", err
-	}
-	windows, err := h.scheduleForPolicy(policy.ID)
-	return policy, windows, "little_monk", err
+	return models.TimePolicy{Timezone: defaultTimezone, Version: 0, Enabled: false}, []models.TimeScheduleWindow{}, "none", nil
 }
 
 func (h TimeControlHandler) policyByLittleMonk(rawID string) (models.TimePolicy, []models.TimeScheduleWindow, error) {
@@ -947,7 +949,7 @@ func isCommandStatus(value string) bool {
 }
 func isCommandType(value string) bool {
 	switch value {
-	case "BLOCK", "UNBLOCK", "EXTRA_TIME", "POLICY_UPDATED", "REFRESH_POLICY", "FORCE_LOCK", "FORCE_LOGOUT":
+	case "BLOCK", "UNBLOCK", "EXTRA_TIME", "RESUME_POLICY", "POLICY_UPDATED", "REFRESH_POLICY", "FORCE_LOCK", "FORCE_LOGOUT":
 		return true
 	default:
 		return false

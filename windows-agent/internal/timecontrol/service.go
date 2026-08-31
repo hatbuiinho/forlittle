@@ -199,6 +199,9 @@ func (s *Service) applyCommand(ctx context.Context, command Command) {
 		}
 		until := now.Add(time.Duration(payload.DurationSeconds) * time.Second)
 		s.state.Override.ExtendedUntil = &until
+	case "RESUME_POLICY":
+		// Remove every manual override so the effective state is calculated from the schedule again.
+		s.state.Override = Override{}
 	case "REFRESH_POLICY", "POLICY_UPDATED":
 		// The next sync occurs immediately after releasing the lock.
 	case "FORCE_LOCK", "FORCE_LOGOUT":

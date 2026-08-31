@@ -74,6 +74,7 @@ func New(cfg config.Config, database *gorm.DB) *gin.Engine {
 			secured.GET("/log-groups", adminHandler.ListLogGroups)
 			secured.GET("/time-control/little-monks/:littleMonkId/policy", timeControlHandler.GetPolicyAdmin)
 			secured.PUT("/time-control/little-monks/:littleMonkId/policy", timeControlHandler.PutPolicyAdmin)
+			secured.GET("/time-control/machines", timeControlHandler.ListManagedMachinesAdmin)
 			secured.GET("/time-control/shared-policies", timeControlHandler.ListSharedPoliciesAdmin)
 			secured.POST("/time-control/shared-policies", timeControlHandler.CreateSharedPolicyAdmin)
 			secured.PUT("/time-control/shared-policies/:policyId", timeControlHandler.UpdateSharedPolicyAdmin)
